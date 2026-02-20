@@ -39,25 +39,7 @@
     }
     #ui button:hover { background: rgba(255,255,255,.18); }
 
-    #hud {
-      position:fixed; left:12px; top:10px; color:#fff;
-      font: 13px ui-monospace, monospace;
-      text-shadow: 0 2px 0 #000;
-      user-select:none; white-space:pre;
-      z-index: 5; pointer-events:none;
-      display:none; /* replaced by hud-bar */
-    }
-    #weapon {
-      position: fixed; left: 50%; bottom: 50px;
-      transform: translateX(-50%);
-      width: min(560px, 75vw);
-      height: auto;
-      opacity: .97;
-      image-rendering: pixelated;
-      pointer-events:none;
-      filter: drop-shadow(0 8px 0 rgba(0,0,0,.7));
-      z-index: 4;
-    }
+    #weapon { display: none; }
     #crosshair {
       position: fixed; left: 50%; top: 50%;
       transform: translate(-50%, -50%);
@@ -241,98 +223,107 @@
       if (connected) controls.lock();
     });
 
-    // ── VAPEN SPRITE (hagelgevär, framåtriktat perspektiv) ──────────────────
-    weaponImg.src = (() => {
-      const W = 320, H = 200;
-      const c = document.createElement("canvas");
-      c.width = W; c.height = H;
-      const g = c.getContext("2d");
-      g.imageSmoothingEnabled = false;
-      g.clearRect(0,0,W,H);
-      const px = (x,y,w,h,col) => { g.fillStyle=col; g.fillRect(x,y,w,h); };
+    // =========================
+    // 3D VAPEN (mesh på kameran)
+    // =========================
+    // Vapnet byggs av enkla BoxGeometry-delar och fästs på kameran
+    // så att det alltid ser rätt ut oavsett vart man tittar.
 
-      // Perspektiv: pipa pekar rakt in i skärmen, mot mitten-vänster
-      // Pipa (cirkulär mynning, perspektivkomprimerad)
-      // Mynning – stor cirkel, mörkare inre
-      g.fillStyle = "#0a0a0a";
-      g.beginPath(); g.ellipse(108, 52, 18, 10, 0, 0, Math.PI*2); g.fill();
-      g.fillStyle = "#1a1a1a";
-      g.beginPath(); g.ellipse(108, 52, 14, 7, 0, 0, Math.PI*2); g.fill();
-      g.fillStyle = "#000";
-      g.beginPath(); g.ellipse(108, 52, 9, 5, 0, 0, Math.PI*2); g.fill();
-      // Mynningskant
-      g.strokeStyle = "#3a3a3a"; g.lineWidth = 2;
-      g.beginPath(); g.ellipse(108, 52, 18, 10, 0, 0, Math.PI*2); g.stroke();
+    const weaponGroup = new THREE.Group();
 
-      // Pipa – övre sida (topp-yta perspektiv)
-      px(108, 44, 160, 8, "#2a2a2a");
-      px(110, 45, 158, 3, "#444");
-      px(110, 45, 158, 1, "#555");
-      // Pipa – sida (höger sida perspektiv)
-      px(108, 52, 162, 20, "#1a1a1a");
-      px(110, 53, 160, 6, "#2e2e2e");
-      px(112, 53, 158, 3, "#363636");
+    const mDark   = new THREE.MeshLambertMaterial({ color: 0x1a1a1f });
+    const mMid    = new THREE.MeshLambertMaterial({ color: 0x2e2e36 });
+    const mLight  = new THREE.MeshLambertMaterial({ color: 0x484850 });
+    const mWood   = new THREE.MeshLambertMaterial({ color: 0x3e2010 });
+    const mWoodL  = new THREE.MeshLambertMaterial({ color: 0x5e3418 });
+    const mHand   = new THREE.MeshLambertMaterial({ color: 0xb86030 });
+    const mHandL  = new THREE.MeshLambertMaterial({ color: 0xd07848 });
 
-      // Underpipa / magasin-rör
-      px(108, 72, 140, 10, "#111");
-      px(110, 73, 138, 4, "#222");
+    function box(w,h,d, mat, x,y,z){
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+      m.position.set(x,y,z);
+      weaponGroup.add(m);
+      return m;
+    }
 
-      // Receiver (kropp) – stor låda
-      px(210, 40, 80, 52, "#1a1a1f");
-      px(212, 42, 76, 20, "#252528");
-      px(214, 43, 72, 8, "#333336");
-      px(214, 44, 72, 2, "#46464a"); // reflex-linje
-      // Ejection port
-      px(220, 50, 34, 18, "#0d0d0d");
-      px(222, 52, 30, 14, "#080808");
+    // --- Hagelgevär uppbyggt bit för bit ---
+    // Pipa (lång, smal) – pekar längs -Z (framåt)
+    box(0.06, 0.06, 1.10, mDark,   0,      0,     -0.55);  // yttre pipa
+    box(0.04, 0.04, 1.10, mLight,  0,      0.005, -0.55);  // reflex topp
 
-      // Pump-handtag (trä, perspektiv)
-      px(155, 58, 52, 36, "#2a1808");
-      px(157, 60, 48, 14, "#3e2410");
-      px(159, 61, 44, 6, "#5c3618");
-      // Pump-ränder
-      for(let i=0;i<4;i++) px(160+i*10, 58, 2, 36, "#1e0f04");
+    // Underpipa (magasin)
+    box(0.05, 0.05, 0.80, mDark,   0,     -0.055, -0.40); // underpipa
 
-      // Kolv (trä, perspektiv)
-      px(288, 44, 28, 52, "#1e0e04");
-      px(290, 46, 24, 20, "#2e1a08");
-      px(292, 47, 20, 8, "#3e2410");
-      // Kolfplatta
-      px(312, 38, 6, 62, "#0a0a0a");
-      px(313, 39, 4, 60, "#151515");
+    // Receiver (kroppen)
+    box(0.10, 0.10, 0.28, mDark,   0,      0.01,   0.08); // receiver yttre
+    box(0.08, 0.07, 0.26, mMid,    0,      0.015,  0.08); // receiver inre
+    box(0.09, 0.015,0.24, mLight,  0,      0.06,   0.08); // reflex-list
 
-      // Avtryckarbygel + avtryckare
-      g.strokeStyle = "#2a2a2a"; g.lineWidth = 3;
-      g.beginPath(); g.arc(248, 100, 16, 0, Math.PI); g.stroke();
-      px(245, 84, 4, 16, "#1a1a1a");
+    // Pump-handtag (trä)
+    box(0.10, 0.07, 0.20, mWood,   0,     -0.02,  -0.22); // pump yttre
+    box(0.08, 0.045,0.17, mWoodL,  0,     -0.01,  -0.22); // pump ljus
 
-      // Vänster hand (runt pump)
-      px(148, 92, 70, 28, "#b06535");
-      px(150, 93, 66, 16, "#c87848");
-      px(152, 94, 62, 8, "#daa060");
-      // Tumme vänster
-      px(144, 88, 16, 14, "#b06535");
-      px(146, 90, 12, 8, "#c87848");
-      // Fingrar vänster (fyra)
-      for(let i=0;i<4;i++){
-        px(150+i*15, 118, 12, 20, "#b06535");
-        px(152+i*15, 120, 8, 12, "#c87848");
-      }
+    // Kolv (trä) – bak
+    box(0.09, 0.09, 0.25, mWood,   0,     -0.005,  0.28); // kolv
+    box(0.07, 0.06, 0.22, mWoodL,  0,      0.005,  0.27); // kolv ljus
+    box(0.095,0.095,0.015,mDark,   0,     -0.005,  0.40); // kolfplatta
 
-      // Höger hand (runt pistolgrepp)
-      px(230, 96, 58, 30, "#b06535");
-      px(232, 98, 54, 18, "#c87848");
-      px(234, 99, 50, 8, "#daa060");
-      // Tumme höger
-      px(226, 92, 14, 16, "#b06535");
-      // Fingrar höger
-      for(let i=0;i<3;i++){
-        px(232+i*16, 124, 13, 22, "#b06535");
-        px(234+i*16, 126, 9, 14, "#c87848");
-      }
+    // Pistolgrepp (trä, nedre)
+    box(0.07, 0.14, 0.08, mWood,   0.005,-0.085,  0.12); // grepp
+    box(0.05, 0.11, 0.06, mWoodL,  0.005,-0.075,  0.12); // grepp ljus
 
-      return c.toDataURL();
-    })();
+    // Avtryckarbygel
+    box(0.005,0.005,0.07, mDark,   0,     -0.05,   0.09); // bygel vänster
+    box(0.005,0.005,0.07, mDark,   0.01,  -0.05,   0.09); // bygel höger
+    box(0.015,0.005,0.005,mDark,   0.005, -0.085,  0.055);// bygel botten
+
+    // Höger hand (håller greppet)
+    box(0.09, 0.10, 0.14, mHand,   0.04,  -0.10,   0.15); // handflata
+    box(0.07, 0.07, 0.11, mHandL,  0.04,  -0.09,   0.15); // hand ljus
+    // Fingrar
+    box(0.025,0.07, 0.025,mHand,   0.02,  -0.16,   0.10);
+    box(0.025,0.07, 0.025,mHand,   0.045, -0.16,   0.10);
+    box(0.025,0.065,0.025,mHand,   0.07,  -0.155,  0.10);
+    box(0.02, 0.055,0.025,mHand,   0.09,  -0.148,  0.10);
+    // Tumme
+    box(0.025,0.05, 0.05, mHand,   0.005, -0.07,   0.09);
+
+    // Vänster hand (håller pump)
+    box(0.09, 0.08, 0.16, mHand,   0.04,  -0.06,  -0.22); // handflata
+    box(0.07, 0.06, 0.13, mHandL,  0.04,  -0.055, -0.22); // hand ljus
+    // Fingrar vänster
+    box(0.025,0.06, 0.025,mHand,   0.02,  -0.12,  -0.26);
+    box(0.025,0.06, 0.025,mHand,   0.045, -0.12,  -0.26);
+    box(0.025,0.055,0.025,mHand,   0.07,  -0.115, -0.26);
+    box(0.02, 0.05, 0.025,mHand,   0.09,  -0.108, -0.26);
+
+    // Positionera vapnet nere till höger i kameravyn
+    // Vi lägger det som barn till kameran
+    weaponGroup.position.set(0.22, -0.24, -0.55);
+    weaponGroup.rotation.y = 0.08; // lite vriden inåt
+
+    // Lägg till ett eget kamera-objekt för vapnet så det inte påverkas av PointerLock
+    const weaponCamera = new THREE.PerspectiveCamera(60, INTERNAL_W/INTERNAL_H, 0.01, 5);
+    scene.add(weaponCamera); // används bara för referens
+    weaponGroup.visible = false; // döljs tills spelet startar
+
+    // Vi ritar vapnet i en separat render-pass med clearDepth
+    // så det alltid syns framför allt annat
+    renderer.autoClear = false;
+    const weaponScene = new THREE.Scene();
+    weaponScene.add(weaponGroup);
+    // Lägg till lite ljus i vapenscenen också
+    weaponScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const wLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    wLight.position.set(1, 2, 1);
+    weaponScene.add(wLight);
+
+    // Vapen-bob variabler
+    let weaponBobT = 0;
+    let weaponKick = 0; // rekyl upp vid skott
+
+    controls.addEventListener("lock", () => { weaponGroup.visible = true; });
+    controls.addEventListener("unlock", () => { weaponGroup.visible = false; });
 
     // ── BULLET TRACERS (visuella skott i 3D) ────────────────────────────────
     const tracers = [];
@@ -377,73 +368,11 @@
     }
 
     // =========================
-    // Procedural textures (retro)
+    // Enfärgade material (snabbare)
     // =========================
-    function nearest(tex){
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestMipMapNearestFilter;
-      tex.generateMipmaps = true;
-      return tex;
-    }
-    function makeCanvasTexture(w, h, drawFn){
-      const c = document.createElement("canvas");
-      c.width = w; c.height = h;
-      const g = c.getContext("2d");
-      drawFn(g, w, h);
-      const tex = new THREE.CanvasTexture(c);
-      return nearest(tex);
-    }
-
-    const texBrick = makeCanvasTexture(64, 64, (g,w,h)=>{
-      g.fillStyle="#2a1b18"; g.fillRect(0,0,w,h);
-      const mortar="#140c0b";
-      const b1="#6a2a1f", b2="#7a3024", b3="#5e241b";
-      for (let y=0; y<8; y++){
-        for (let x=0; x<8; x++){
-          const bx = x*8 + (y%2?4:0);
-          const by = y*8;
-          const col = [b1,b2,b3][(x+y)%3];
-          g.fillStyle = col; g.fillRect(bx, by, 7, 7);
-          g.fillStyle = mortar;
-          g.fillRect(bx+7, by, 1, 8);
-          g.fillRect(bx, by+7, 8, 1);
-        }
-      }
-      g.globalAlpha=0.22;
-      for(let i=0;i<90;i++){
-        g.fillStyle = i%2? "#000":"#1b0f0d";
-        g.fillRect((Math.random()*w)|0, (Math.random()*h)|0, 2, 1);
-      }
-      g.globalAlpha=1;
-    });
-
-    const texFloor = makeCanvasTexture(64, 64, (g,w,h)=>{
-      g.fillStyle="#1a181b"; g.fillRect(0,0,w,h);
-      for(let i=0;i<2200;i++){
-        const v = 28 + (Math.random()*75)|0;
-        g.fillStyle = `rgb(${v},${v},${v})`;
-        g.fillRect((Math.random()*w)|0, (Math.random()*h)|0, 1, 1);
-      }
-      g.globalAlpha=0.25; g.fillStyle="#060607";
-      for(let i=0;i<14;i++){
-        const x=(Math.random()*w)|0, y=(Math.random()*h)|0;
-        g.fillRect(x,y, (Math.random()*10)|0, 1);
-      }
-      g.globalAlpha=1;
-    });
-
-    const texCeil = makeCanvasTexture(64, 64, (g,w,h)=>{
-      g.fillStyle="#15141a"; g.fillRect(0,0,w,h);
-      g.strokeStyle="rgba(255,255,255,0.06)";
-      for(let i=0;i<=8;i++){
-        g.beginPath(); g.moveTo(i*8,0); g.lineTo(i*8,h); g.stroke();
-        g.beginPath(); g.moveTo(0,i*8); g.lineTo(w,i*8); g.stroke();
-      }
-      g.globalAlpha=0.18; g.fillStyle="#000";
-      for(let i=0;i<220;i++) g.fillRect((Math.random()*w)|0,(Math.random()*h)|0,1,1);
-      g.globalAlpha=1;
-    });
+    const wallMat  = new THREE.MeshLambertMaterial({ color: 0x5a2a18 });
+    const floorMat = new THREE.MeshLambertMaterial({ color: 0x1a1818 });
+    const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x141418, side: THREE.BackSide });
 
     // =========================
     // Level (tilemap)
@@ -476,31 +405,34 @@
     }
 
     const floorGeo = new THREE.PlaneGeometry(mapW*cellSize, mapH*cellSize);
-    const floorMat = new THREE.MeshLambertMaterial({ map: texFloor });
-    floorMat.map.repeat.set(mapW*0.75, mapH*0.75);
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI/2;
     floor.position.set((mapW*cellSize)/2, 0, (mapH*cellSize)/2);
     scene.add(floor);
 
-    const ceilMat = new THREE.MeshLambertMaterial({ map: texCeil, side: THREE.BackSide });
-    ceilMat.map.repeat.set(mapW*0.9, mapH*0.9);
     const ceil = new THREE.Mesh(floorGeo, ceilMat);
     ceil.rotation.x = -Math.PI/2;
     ceil.position.set((mapW*cellSize)/2, 6, (mapH*cellSize)/2);
     scene.add(ceil);
 
+    // InstancedMesh för väggar (snabbare än enskilda meshar)
+    const wallCount = MAP.reduce((n,row)=>n+[...row].filter(c=>c==='#').length, 0);
     const wallGeo = new THREE.BoxGeometry(cellSize, 6, cellSize);
-    const wallMat = new THREE.MeshLambertMaterial({ map: texBrick });
+    const wallInst = new THREE.InstancedMesh(wallGeo, wallMat, wallCount);
+    wallInst.receiveShadow = false;
+    scene.add(wallInst);
+    let wi = 0;
+    const dummy = new THREE.Object3D();
     for (let z=0; z<mapH; z++){
       for (let x=0; x<mapW; x++){
         if (MAP[z][x] === "#"){
-          const w = new THREE.Mesh(wallGeo, wallMat);
-          w.position.set(x*cellSize + cellSize/2, 3, z*cellSize + cellSize/2);
-          scene.add(w);
+          dummy.position.set(x*cellSize + cellSize/2, 3, z*cellSize + cellSize/2);
+          dummy.updateMatrix();
+          wallInst.setMatrixAt(wi++, dummy.matrix);
         }
       }
     }
+    wallInst.instanceMatrix.needsUpdate = true;
 
     // =========================
     // Other players
@@ -689,10 +621,14 @@
 
       controls.getObject().position.copy(player.pos);
 
-      // weapon bob
+      // 3D weapon bob
       const speedNow = Math.hypot(player.vel.x, player.vel.z);
-      const bob = Math.sin(perfTime*0.012 + speedNow*0.08) * Math.min(10, speedNow) * 0.09;
-      weaponImg.style.transform = `translateX(-50%) translateY(${bob}px)`;
+      weaponBobT += speedNow * 0.004;
+      const bobY = Math.sin(weaponBobT * 6) * Math.min(speedNow, 10) * 0.003;
+      const bobX = Math.sin(weaponBobT * 3) * Math.min(speedNow, 10) * 0.001;
+      // Rekyl-kick (smoothed ned)
+      weaponKick = Math.max(0, weaponKick - 0.005);
+      weaponGroup.position.set(0.22 + bobX, -0.24 + bobY + weaponKick, -0.55);
     }
 
     // =========================
@@ -915,8 +851,9 @@
 
     // Muzzle flash on weapon
     function triggerMuzzleFlash(){
-      weaponImg.style.filter = "drop-shadow(0 8px 0 rgba(0,0,0,.7)) brightness(1.4) saturate(1.5)";
-      setTimeout(()=> weaponImg.style.filter = "drop-shadow(0 8px 0 rgba(0,0,0,.7))", 55);
+      weaponKick = 0.04;
+      hitflash.style.background = "rgba(255,200,80,0.07)";
+      setTimeout(()=> hitflash.style.background = "", 55);
     }
 
     const hudHp      = document.getElementById("hud-hp");
@@ -978,7 +915,17 @@
       updateTracers(dt);
       updateHUD();
 
+      // Synka vapenkameran med huvudkameran (rotation)
+      weaponCamera.quaternion.copy(camera.quaternion);
+
+      // Rendera världen
+      renderer.clear();
       renderer.render(scene, camera);
+
+      // Rendera vapnet ovanpå (eget djupbuffer-lager)
+      renderer.clearDepth();
+      renderer.render(weaponScene, weaponCamera);
+
       requestAnimationFrame(tick);
     }
     tick();
