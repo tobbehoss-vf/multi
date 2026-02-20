@@ -103,8 +103,7 @@
     // CONFIG
     // ============
     // ÄNDRA till din Render-app:
-    // const WS_URL = "wss://multi-427x.onrender.com";
-   const WS_URL = (location.hostname === "localhost")
+const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
   ? "ws://localhost:3000"
   : "wss://multi-427x.onrender.com";
 
