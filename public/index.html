@@ -3,35 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Doom-ish PvP (single file)</title>
+  <title>Doom-ish PvP (Render: HTML + WS)</title>
   <style>
     html,body { margin:0; height:100%; overflow:hidden; background:#000; }
     canvas { display:block; width:100vw; height:100vh; image-rendering: pixelated; image-rendering: crisp-edges; }
+
     #ui {
       position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
       font: 16px system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#fff;
-      background: rgba(0,0,0,.65);
+      background: rgba(0,0,0,.55);
       user-select:none;
+      z-index: 10;
     }
-    #ui .box { max-width: 760px; padding: 18px 20px; border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.35); }
+    #ui .box {
+      max-width: 780px;
+      padding: 18px 20px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.35);
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    }
     #ui h1 { margin:0 0 10px; font-size: 20px; }
-    #ui p { margin:8px 0; opacity:.9; line-height:1.5; }
+    #ui p { margin:8px 0; opacity:.92; line-height:1.5; }
+    #ui .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    #ui label { opacity:.9; }
     #ui input {
-      width: 220px; padding: 8px 10px; border-radius: 10px;
+      width: 220px; padding: 9px 10px; border-radius: 10px;
       border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.35); color:#fff;
       outline:none;
     }
     #ui button {
-      margin-left: 8px; padding: 8px 12px; border-radius: 10px;
-      border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.12); color:#fff;
+      padding: 9px 12px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.14); color:#fff;
       cursor:pointer;
     }
+    #ui button:hover { background: rgba(255,255,255,.18); }
+
     #hud {
       position:fixed; left:12px; top:10px; color:#fff;
       font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       text-shadow: 0 2px 0 #000;
       user-select:none;
       white-space: pre;
+      z-index: 5;
+      pointer-events:none;
     }
     #crosshair {
       position: fixed; left: 50%; top: 50%;
@@ -42,6 +57,7 @@
       rotate: 45deg;
       pointer-events:none;
       mix-blend-mode: screen;
+      z-index: 5;
     }
     #toast {
       position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
@@ -49,16 +65,18 @@
       padding: 8px 10px; border-radius: 12px; font: 13px system-ui;
       opacity: 0; transition: opacity .2s ease;
       pointer-events:none;
+      z-index: 6;
     }
     #weapon {
       position: fixed; left: 50%; bottom: -6px;
       transform: translateX(-50%);
       width: min(520px, 70vw);
       height: auto;
-      opacity: .95;
+      opacity: .96;
       image-rendering: pixelated;
       pointer-events:none;
       filter: drop-shadow(0 6px 0 rgba(0,0,0,.55));
+      z-index: 4;
     }
   </style>
 
@@ -75,18 +93,17 @@
 <body>
   <div id="ui">
     <div class="box">
-      <h1>Doom-ish PvP (WebSockets)</h1>
-      <p>
-        Namn:
+      <h1>Doom-ish PvP</h1>
+      <p class="row">
+        <label>Namn:</label>
         <input id="name" maxlength="16" value="tobbe" />
-        Rum:
+        <label>Rum:</label>
         <input id="room" maxlength="16" value="lobby" />
         <button id="join">Join</button>
       </p>
-      <p><b>Klicka i spelet</b> för att låsa musen. <b>ESC</b> släpper musen.</p>
-      <p>WASD = gå/strafa • Mus = titta • Klick = skjut</p>
-      <p style="opacity:.75">Du måste hosta denna html på HTTPS (Pages/Netlify). Servern kör på Render.</p>
-      <p id="status" style="opacity:.85"></p>
+      <p><b>WASD</b> = gå/strafa • <b>Mus</b> = titta • <b>Klick</b> = skjut • <b>ESC</b> = meny</p>
+      <p style="opacity:.78">Tips: Kör detta på samma Render-URL som servern. Då används samma origin automatiskt.</p>
+      <p id="status" style="opacity:.9"></p>
     </div>
   </div>
 
@@ -99,48 +116,17 @@
     import * as THREE from "three";
     import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
-    // ============
-    // CONFIG
-    // ============
-    // ÄNDRA till din Render-app:
-const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
-  ? "ws://localhost:3000"
-  : "wss://multi-427x.onrender.com";
+    // =========================
+    // WebSocket URL (same origin)
+    // =========================
+    const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
 
+    // =========================
+    // Low-res / Doom-ish rendering
+    // =========================
     const INTERNAL_W = 426;
     const INTERNAL_H = 240;
 
-    const cellSize = 4;
-
-    const MAP = [
-      "########################",
-      "#..........#...........#",
-      "#..####....#....####...#",
-      "#..#..#.........#..#...#",
-      "#..####....##...####...#",
-      "#...........#..........#",
-      "#..####..#####..####...#",
-      "#.....#..#...#..#......#",
-      "###...#..#...#..#...####",
-      "#.....#..#####..#......#",
-      "#..........#...........#",
-      "#..####....#....####...#",
-      "#..#..#.........#..#...#",
-      "#..####....#....####...#",
-      "#..........#...........#",
-      "########################"
-    ];
-    const mapH = MAP.length;
-    const mapW = MAP[0].length;
-
-    function isWallCell(cx, cz){
-      if (cx < 0 || cz < 0 || cx >= mapW || cz >= mapH) return true;
-      return MAP[cz][cx] === "#";
-    }
-
-    // ============
-    // RENDER / SCENE
-    // ============
     const renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:"high-performance" });
     renderer.setPixelRatio(1);
     renderer.setSize(INTERNAL_W, INTERNAL_H, false);
@@ -150,20 +136,26 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
     document.body.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x07060a, 10, 65);
+    // LjUSARE: svagare, “mjukare” dimma
+    scene.fog = new THREE.Fog(0x14121a, 18, 120);
 
     const camera = new THREE.PerspectiveCamera(75, INTERNAL_W/INTERNAL_H, 0.1, 200);
-    scene.add(new THREE.AmbientLight(0x3a3340, 0.85));
-    const key = new THREE.DirectionalLight(0xffe3c2, 0.55);
-    key.position.set(6, 10, 3);
+
+    // LJUSARE: mer ambient + extra fill light
+    scene.add(new THREE.AmbientLight(0xffffff, 1.05));
+    const key = new THREE.DirectionalLight(0xffffff, 1.15);
+    key.position.set(6, 12, 4);
     scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.55);
+    fill.position.set(-6, 8, -4);
+    scene.add(fill);
 
     const controls = new PointerLockControls(camera, document.body);
     scene.add(controls.getObject());
 
-    // ============
-    // UI
-    // ============
+    // =========================
+    // UI elements
+    // =========================
     const ui = document.getElementById("ui");
     const statusEl = document.getElementById("status");
     const hud = document.getElementById("hud");
@@ -173,10 +165,20 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
     function showToast(text){
       toast.textContent = text;
       toast.style.opacity = "1";
-      setTimeout(()=> toast.style.opacity = "0", 800);
+      setTimeout(()=> toast.style.opacity = "0", 900);
     }
 
-    // basic weapon sprite
+    // Show/hide menu based on pointer lock
+    controls.addEventListener("lock", () => { ui.style.display = "none"; });
+    controls.addEventListener("unlock", () => { ui.style.display = "flex"; });
+
+    // Clicking outside inputs/buttons locks (only after connected)
+    ui.addEventListener("click", (e)=>{
+      if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON" || e.target.tagName === "LABEL") return;
+      if (connected) controls.lock();
+    });
+
+    // weapon sprite
     weaponImg.src = (() => {
       const c = document.createElement("canvas");
       c.width = 240; c.height = 140;
@@ -196,17 +198,9 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       return c.toDataURL();
     })();
 
-    ui.addEventListener("click", (e)=>{
-      // allow clicking inputs without locking
-      if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
-      if (connected) controls.lock();
-    });
-    controls.addEventListener("lock", () => {});
-    controls.addEventListener("unlock", () => {});
-
-    // ============
-    // Textures (procedural retro)
-    // ============
+    // =========================
+    // Procedural textures (retro)
+    // =========================
     function nearest(tex){
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.magFilter = THREE.NearestFilter;
@@ -238,7 +232,7 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
           g.fillRect(bx, by+7, 8, 1);
         }
       }
-      g.globalAlpha=0.25;
+      g.globalAlpha=0.22;
       for(let i=0;i<90;i++){
         g.fillStyle = i%2? "#000":"#1b0f0d";
         g.fillRect((Math.random()*w)|0, (Math.random()*h)|0, 2, 1);
@@ -247,13 +241,13 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
     });
 
     const texFloor = makeCanvasTexture(64, 64, (g,w,h)=>{
-      g.fillStyle="#121113"; g.fillRect(0,0,w,h);
+      g.fillStyle="#1a181b"; g.fillRect(0,0,w,h);
       for(let i=0;i<2200;i++){
-        const v = 16 + (Math.random()*60)|0;
+        const v = 28 + (Math.random()*75)|0;
         g.fillStyle = `rgb(${v},${v},${v})`;
         g.fillRect((Math.random()*w)|0, (Math.random()*h)|0, 1, 1);
       }
-      g.globalAlpha=0.35; g.fillStyle="#060607";
+      g.globalAlpha=0.25; g.fillStyle="#060607";
       for(let i=0;i<14;i++){
         const x=(Math.random()*w)|0, y=(Math.random()*h)|0;
         g.fillRect(x,y, (Math.random()*10)|0, 1);
@@ -262,20 +256,47 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
     });
 
     const texCeil = makeCanvasTexture(64, 64, (g,w,h)=>{
-      g.fillStyle="#0e0f14"; g.fillRect(0,0,w,h);
-      g.strokeStyle="rgba(255,255,255,0.05)";
+      g.fillStyle="#15141a"; g.fillRect(0,0,w,h);
+      g.strokeStyle="rgba(255,255,255,0.06)";
       for(let i=0;i<=8;i++){
         g.beginPath(); g.moveTo(i*8,0); g.lineTo(i*8,h); g.stroke();
         g.beginPath(); g.moveTo(0,i*8); g.lineTo(w,i*8); g.stroke();
       }
-      g.globalAlpha=0.2; g.fillStyle="#000";
-      for(let i=0;i<200;i++) g.fillRect((Math.random()*w)|0,(Math.random()*h)|0,1,1);
+      g.globalAlpha=0.18; g.fillStyle="#000";
+      for(let i=0;i<220;i++) g.fillRect((Math.random()*w)|0,(Math.random()*h)|0,1,1);
       g.globalAlpha=1;
     });
 
-    // ============
-    // World (floor/ceiling/walls)
-    // ============
+    // =========================
+    // Level (tilemap)
+    // =========================
+    const cellSize = 4;
+    const MAP = [
+      "########################",
+      "#..........#...........#",
+      "#..####....#....####...#",
+      "#..#..#.........#..#...#",
+      "#..####....##...####...#",
+      "#...........#..........#",
+      "#..####..#####..####...#",
+      "#.....#..#...#..#......#",
+      "###...#..#...#..#...####",
+      "#.....#..#####..#......#",
+      "#..........#...........#",
+      "#..####....#....####...#",
+      "#..#..#.........#..#...#",
+      "#..####....#....####...#",
+      "#..........#...........#",
+      "########################"
+    ];
+    const mapH = MAP.length;
+    const mapW = MAP[0].length;
+
+    function isWallCell(cx, cz){
+      if (cx < 0 || cz < 0 || cx >= mapW || cz >= mapH) return true;
+      return MAP[cz][cx] === "#";
+    }
+
     const floorGeo = new THREE.PlaneGeometry(mapW*cellSize, mapH*cellSize);
     const floorMat = new THREE.MeshLambertMaterial({ map: texFloor });
     floorMat.map.repeat.set(mapW*0.75, mapH*0.75);
@@ -304,9 +325,9 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       }
     }
 
-    // ============
-    // Multiplayer rendering: other players as sprites
-    // ============
+    // =========================
+    // Other players (sprites)
+    // =========================
     function makePlayerSpriteTexture(){
       const c = document.createElement("canvas");
       c.width = 64; c.height = 64;
@@ -321,8 +342,7 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       return nearest(tex);
     }
     const playerTex = makePlayerSpriteTexture();
-
-    const others = new Map(); // id -> {sprite, labelCanvas, labelSprite, last:{x,z,yaw,pitch,hp}, render:{x,z}}
+    const others = new Map(); // id -> {sprite,label,last,render}
 
     function makeNameLabel(name){
       const c = document.createElement("canvas");
@@ -372,9 +392,9 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       others.delete(id);
     }
 
-    // ============
-    // Player movement (client-side) + send input to server
-    // ============
+    // =========================
+    // Player movement + collision
+    // =========================
     const keys = new Set();
     addEventListener("keydown", e => keys.add(e.code));
     addEventListener("keyup", e => keys.delete(e.code));
@@ -464,9 +484,9 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       weaponImg.style.transform = `translateX(-50%) translateY(${bob}px)`;
     }
 
-    // ============
+    // =========================
     // Networking (WebSocket)
-    // ============
+    // =========================
     let ws = null;
     let connected = false;
 
@@ -480,18 +500,12 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       const room = document.getElementById("room").value || "lobby";
       player.room = room;
 
-      // If you haven't replaced YOUR-APP.onrender.com, show helpful status
-      if (WS_URL.includes("YOUR-APP.onrender.com")) {
-        statusEl.textContent = "⚠️ Ändra WS_URL i koden till din Render-app (wss://...).";
-        return;
-      }
-
-      statusEl.textContent = "Ansluter...";
+      statusEl.textContent = `Ansluter till ${WS_URL} ...`;
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
         connected = true;
-        statusEl.textContent = "Ansluten. Klicka i spelet för att låsa musen.";
+        statusEl.textContent = "Ansluten. Laddar rum...";
         wsSend({ t:"join", name, room });
       };
 
@@ -500,10 +514,11 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
         statusEl.textContent = "Frånkopplad.";
         player.id = null;
         for (const id of [...others.keys()]) removeOther(id);
+        ui.style.display = "flex";
       };
 
       ws.onerror = () => {
-        statusEl.textContent = "Fel vid anslutning (kolla WS_URL, HTTPS/WSS och Render-loggar).";
+        statusEl.textContent = "Fel vid anslutning (kolla Render logs).";
       };
 
       ws.onmessage = (ev) => {
@@ -516,14 +531,17 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
           player.pos.x = msg.you.x; player.pos.z = msg.you.z;
           controls.getObject().position.copy(player.pos);
 
-          // create others
           for (const p of msg.players) {
             if (p.id === player.id) continue;
             const o = ensureOther(p.id, p.name);
             o.last = { ...p };
             o.render.x = p.x; o.render.z = p.z;
           }
-          showToast(`Joined room: ${msg.room}`);
+
+          showToast(`Joined: ${msg.room}`);
+          // Göm join-menyn och lås musen direkt
+          ui.style.display = "none";
+          setTimeout(() => controls.lock(), 50);
           return;
         }
 
@@ -543,7 +561,6 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
 
         if (msg.t === "player_name") {
           const o = ensureOther(msg.id, msg.name);
-          // update label texture
           o.label.material.map = makeNameLabel(msg.name);
           o.label.material.needsUpdate = true;
           o.last.name = msg.name;
@@ -556,7 +573,6 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
             showToast("HIT!");
           }
           if (msg.from === player.id) showToast("Nice!");
-          // also update victim hp if it's an other
           const o = others.get(msg.to);
           if (o) o.last.hp = msg.hp;
           return;
@@ -579,32 +595,30 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
         if (msg.t === "state") {
           for (const p of msg.players) {
             if (p.id === player.id) {
-              // server is authoritative for hp; pos we keep client-side for snappy feel
               player.hp = p.hp;
               continue;
             }
             const o = ensureOther(p.id, p.name);
             o.last = { ...p };
           }
-          return;
         }
       };
     }
 
-    document.getElementById("join").addEventListener("click", connectAndJoin);
+    document.getElementById("join").addEventListener("click", () => {
+      connectAndJoin();
+    });
 
-    // ============
+    // =========================
     // Input sending
-    // ============
+    // =========================
     function getYawPitch(){
-      // PointerLockControls stores rotation on its internal object/camera
       const yaw = controls.getObject().rotation.y;
       const pitch = camera.rotation.x;
       return { yaw, pitch };
     }
 
     function computeWorldInput(){
-      // Send movement in world coordinates to server
       const forward = new THREE.Vector3();
       controls.getDirection(forward);
       forward.y = 0; forward.normalize();
@@ -620,13 +634,10 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       v.addScaledVector(forward, iz);
       v.addScaledVector(right, ix);
       if (v.lengthSq() > 0) v.normalize();
-
       return { ix: v.x, iz: v.z };
     }
 
-    let inputSendAccum = 0;
-
-    // Shooting
+    // shooting
     let shootCooldown = 0;
     addEventListener("mousedown", () => {
       if (!connected || !controls.isLocked) return;
@@ -642,26 +653,24 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
       wsSend({ t:"shoot", yaw, pitch });
     });
 
-    // ============
+    let inputSendAccum = 0;
+
+    // =========================
     // Render loop
-    // ============
+    // =========================
     const clock = new THREE.Clock();
 
     function updateOthers(dt){
-      // interpolate other players for smoothness
       const interp = 1 - Math.exp(-18 * dt);
-
       for (const [id, o] of others) {
         const tx = o.last.x, tz = o.last.z;
         o.render.x += (tx - o.render.x) * interp;
         o.render.z += (tz - o.render.z) * interp;
-
         o.sprite.position.set(o.render.x, 1.7, o.render.z);
         o.label.position.set(o.render.x, 3.3, o.render.z);
 
-        // color by hp
         const hp = o.last.hp ?? 100;
-        const shade = hp <= 0 ? 0.2 : 0.9;
+        const shade = hp <= 0 ? 0.25 : 0.95;
         o.sprite.material.color.setScalar(shade);
       }
     }
@@ -671,8 +680,8 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
         `ROOM ${player.room}\n` +
         `HP   ${String(Math.max(0,player.hp)).padStart(3," ")}\n` +
         `AMMO ${String(player.ammo).padStart(3," ")}\n` +
-        `PING  ---\n` +
-        `WS   ${connected ? "ON" : "OFF"}`;
+        `WS   ${connected ? "ON" : "OFF"}\n` +
+        `ESC  MENU`;
     }
 
     function handleResize(){
@@ -688,6 +697,7 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
     function tick(){
       const dt = Math.min(0.033, clock.getDelta());
       perfTime += dt * 1000;
+
       if (shootCooldown > 0) shootCooldown -= dt;
 
       if (controls.isLocked){
@@ -696,7 +706,7 @@ const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.
 
       if (connected) {
         inputSendAccum += dt;
-        if (inputSendAccum >= 1/30) { // send input ~30Hz
+        if (inputSendAccum >= 1/30) { // ~30Hz
           inputSendAccum = 0;
           const { yaw, pitch } = getYawPitch();
           const inp = computeWorldInput();
