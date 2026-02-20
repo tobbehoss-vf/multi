@@ -184,16 +184,17 @@
 
     const scene = new THREE.Scene();
     // Ljusare, mjuk dimma
-    scene.fog = new THREE.Fog(0x14121a, 18, 120);
+    scene.fog = new THREE.Fog(0x1a1820, 18, 120);
+    scene.background = new THREE.Color(0x1a1820);
 
     const camera = new THREE.PerspectiveCamera(75, INTERNAL_W/INTERNAL_H, 0.1, 200);
 
     // Ljussättning (ljusare än tidigare)
-    scene.add(new THREE.AmbientLight(0xffffff, 1.05));
-    const key = new THREE.DirectionalLight(0xffffff, 1.15);
+    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    const key = new THREE.DirectionalLight(0xffffff, 2.5);
     key.position.set(6, 12, 4);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.55);
+    const fill = new THREE.DirectionalLight(0xffffff, 1.2);
     fill.position.set(-6, 8, -4);
     scene.add(fill);
 
@@ -370,9 +371,9 @@
     // =========================
     // Enfärgade material (snabbare)
     // =========================
-    const wallMat  = new THREE.MeshLambertMaterial({ color: 0x5a2a18 });
-    const floorMat = new THREE.MeshLambertMaterial({ color: 0x1a1818 });
-    const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x141418, side: THREE.BackSide });
+    const wallMat  = new THREE.MeshLambertMaterial({ color: 0xcc8855 });
+    const floorMat = new THREE.MeshLambertMaterial({ color: 0x444440 });
+    const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x333338, side: THREE.BackSide });
 
     // =========================
     // Level (tilemap)
@@ -753,7 +754,19 @@
       };
     }
 
-    document.getElementById("join").addEventListener("click", () => connectAndJoin());
+    document.getElementById("join").addEventListener("click", () => {
+      // Starta alltid lokalt (offline-läge om ingen server)
+      player.room = document.getElementById("room").value || "lobby";
+      player.hp = 100;
+      player.ammo = 50;
+      player.pos.set(cellSize*2, 1.7, cellSize*2);
+      controls.getObject().position.copy(player.pos);
+      ui.style.display = "none";
+      updateHUD();
+      setTimeout(() => controls.lock(), 50);
+      // Försök också ansluta till server
+      connectAndJoin();
+    });
 
     // =========================
     // Input sending (world-space)
