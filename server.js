@@ -1,10 +1,6 @@
 // server.js
 // Render-friendly: serves /public/index.html AND runs WebSocket on same origin.
-// Fixes:
-// - Server-side wall collision (players can't go through walls)
-// - Damage per shot = 25
-// - Players have 100 HP
-// - Respawn after death
+// Server-authoritative movement + wall collision + hits + respawn.
 
 import http from "http";
 import { WebSocketServer } from "ws";
@@ -36,12 +32,10 @@ const server = http.createServer((req, res) => {
   if (req.url === "/" || req.url === "/index.html") {
     return serveFile(res, path.join(PUBLIC_DIR, "index.html"), "text/html; charset=utf-8");
   }
-
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "text/plain" });
     return res.end("ok\n");
   }
-
   res.writeHead(404, { "Content-Type": "text/plain" });
   res.end("Not found\n");
 });
@@ -50,7 +44,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 // ---- Config ----
-const TICK_HZ = 20;
+const TICK_HZ = 30;
 const DT = 1 / TICK_HZ;
 
 const MAX_HP = 100;
@@ -59,10 +53,10 @@ const RESPAWN_MS = 1200;
 
 const PLAYER_RADIUS = 0.55;
 
-// movement tuning
-const SPEED = 10.4;
-const ACCEL = 30.0;
-const FRICTION = 10.0;
+// movement tuning (keep simple and deterministic)
+const SPEED = 9.8;
+const ACCEL = 28.0;
+const FRICTION = 12.0;
 
 // ---- Level (same map as client) ----
 const CELL = 4;
@@ -114,10 +108,7 @@ function circleHitsWall(x, z, r) {
 
 function collideAndSlide(p, newX, newZ) {
   const r = PLAYER_RADIUS;
-
-  // try X
   if (!circleHitsWall(newX, p.z, r)) p.x = newX;
-  // try Z
   if (!circleHitsWall(p.x, newZ, r)) p.z = newZ;
 }
 
@@ -141,7 +132,6 @@ function getOrCreateRoom(name) {
 }
 
 function spawnPoint(room) {
-  // Choose floor-ish spawn points (not inside walls)
   const base = [
     { x: 8, z: 8 },
     { x: 84, z: 8 },
@@ -149,9 +139,7 @@ function spawnPoint(room) {
     { x: 84, z: 56 },
     { x: 46, z: 32 },
   ];
-  // ensure not in wall; if it is, nudge
   let sp = base[room.players.size % base.length];
-  // quick sanity: if in wall, move to center
   const cx = Math.floor(sp.x / CELL), cz = Math.floor(sp.z / CELL);
   if (isWallCell(cx, cz)) sp = { x: 8, z: 8 };
   return sp;
@@ -164,7 +152,29 @@ function broadcast(room, obj) {
   }
 }
 
-// ---- Hitscan: ray vs circle in XZ (no wall blocking for now) ----
+// ---- Hitscan with wall blocking (ray marching in grid) ----
+function yawToDirXZ(yaw) {
+  const dx = -Math.sin(yaw);
+  const dz = -Math.cos(yaw);
+  const l = Math.sqrt(dx * dx + dz * dz) || 1;
+  return { dx: dx / l, dz: dz / l };
+}
+
+function rayBlockedByWall(ox, oz, dx, dz, maxDist) {
+  // Step in small increments; cheap & good enough for prototype.
+  const step = 0.35;
+  let t = 0;
+  while (t <= maxDist) {
+    const x = ox + dx * t;
+    const z = oz + dz * t;
+    const cx = Math.floor(x / CELL);
+    const cz = Math.floor(z / CELL);
+    if (isWallCell(cx, cz)) return true;
+    t += step;
+  }
+  return false;
+}
+
 function rayHitsPlayer(shooter, target, dirX, dirZ, maxDist = 60) {
   const ox = shooter.x, oz = shooter.z;
   const cx = target.x, cz = target.z;
@@ -177,14 +187,13 @@ function rayHitsPlayer(shooter, target, dirX, dirZ, maxDist = 60) {
   const px = ox + dirX * t;
   const pz = oz + dirZ * t;
   const dist2 = (cx - px) ** 2 + (cz - pz) ** 2;
-  return dist2 <= r * r ? t : null;
-}
+  if (dist2 > r * r) return null;
 
-function yawToDirXZ(yaw) {
-  const dx = -Math.sin(yaw);
-  const dz = -Math.cos(yaw);
-  const l = Math.sqrt(dx * dx + dz * dz) || 1;
-  return { dx: dx / l, dz: dz / l };
+  // wall blocking: ensure no wall between shooter and hit point
+  const blocked = rayBlockedByWall(ox, oz, dirX, dirZ, t);
+  if (blocked) return null;
+
+  return t;
 }
 
 wss.on("connection", (ws) => {
@@ -273,7 +282,6 @@ wss.on("connection", (ws) => {
 
 setInterval(() => {
   for (const room of rooms.values()) {
-    // movement + timeout cleanup
     for (const p of room.players.values()) {
       if (nowMs() - p.lastHeardMs > 30000) {
         try { p.ws.close(); } catch {}
@@ -300,17 +308,14 @@ setInterval(() => {
         p.vz = lerp(p.vz, 0, t);
       }
 
-      // integrate with wall collision
-      const newX = p.x + p.vx * DT;
-      const newZ = p.z + p.vz * DT;
-
-      // keep within map outer boundary implicitly via walls, but also clamp to map extents
+      // integrate with collision + clamp to map extents
       const minX = 0.5, maxX = MAP_W * CELL - 0.5;
       const minZ = 0.5, maxZ = MAP_H * CELL - 0.5;
-      const cx = clamp(newX, minX, maxX);
-      const cz = clamp(newZ, minZ, maxZ);
 
-      collideAndSlide(p, cx, cz);
+      const newX = clamp(p.x + p.vx * DT, minX, maxX);
+      const newZ = clamp(p.z + p.vz * DT, minZ, maxZ);
+
+      collideAndSlide(p, newX, newZ);
     }
 
     // shooting
