@@ -102,7 +102,7 @@
         <button id="join">Join</button>
       </p>
       <p><b>WASD</b> = gå/strafa • <b>Mus</b> = titta • <b>Klick</b> = skjut • <b>ESC</b> = meny</p>
-      <p style="opacity:.78">Tips: Kör detta på samma Render-URL som servern. Då används samma origin automatiskt.</p>
+      <p style="opacity:.78">Doom-känsla: hög fart + “slide”. (Inga hopp.)</p>
       <p id="status" style="opacity:.9"></p>
     </div>
   </div>
@@ -136,12 +136,12 @@
     document.body.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    // LjUSARE: svagare, “mjukare” dimma
+    // Ljusare, mjuk dimma
     scene.fog = new THREE.Fog(0x14121a, 18, 120);
 
     const camera = new THREE.PerspectiveCamera(75, INTERNAL_W/INTERNAL_H, 0.1, 200);
 
-    // LJUSARE: mer ambient + extra fill light
+    // Ljussättning (ljusare än tidigare)
     scene.add(new THREE.AmbientLight(0xffffff, 1.05));
     const key = new THREE.DirectionalLight(0xffffff, 1.15);
     key.position.set(6, 12, 4);
@@ -154,7 +154,7 @@
     scene.add(controls.getObject());
 
     // =========================
-    // UI elements
+    // UI
     // =========================
     const ui = document.getElementById("ui");
     const statusEl = document.getElementById("status");
@@ -168,11 +168,9 @@
       setTimeout(()=> toast.style.opacity = "0", 900);
     }
 
-    // Show/hide menu based on pointer lock
     controls.addEventListener("lock", () => { ui.style.display = "none"; });
     controls.addEventListener("unlock", () => { ui.style.display = "flex"; });
 
-    // Clicking outside inputs/buttons locks (only after connected)
     ui.addEventListener("click", (e)=>{
       if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON" || e.target.tagName === "LABEL") return;
       if (connected) controls.lock();
@@ -314,7 +312,6 @@
 
     const wallGeo = new THREE.BoxGeometry(cellSize, 6, cellSize);
     const wallMat = new THREE.MeshLambertMaterial({ map: texBrick });
-
     for (let z=0; z<mapH; z++){
       for (let x=0; x<mapW; x++){
         if (MAP[z][x] === "#"){
@@ -326,7 +323,7 @@
     }
 
     // =========================
-    // Other players (sprites)
+    // Other players
     // =========================
     function makePlayerSpriteTexture(){
       const c = document.createElement("canvas");
@@ -342,7 +339,7 @@
       return nearest(tex);
     }
     const playerTex = makePlayerSpriteTexture();
-    const others = new Map(); // id -> {sprite,label,last,render}
+    const others = new Map();
 
     function makeNameLabel(name){
       const c = document.createElement("canvas");
@@ -393,19 +390,22 @@
     }
 
     // =========================
-    // Player movement + collision
+    // Player movement: Doom-ish “slide”
     // =========================
     const keys = new Set();
     addEventListener("keydown", e => keys.add(e.code));
     addEventListener("keyup", e => keys.delete(e.code));
 
+    // Tweakables (more classic Doom feel)
+    const MOVE_SPEED = 10.4;    // higher top speed
+    const ACCEL_GROUND = 30.0;  // snappier acceleration
+    const FRICTION = 10.0;      // lower friction => more sliding
+    const STRAFE_BIAS = 1.0;    // keep strafe same speed
+
     const player = {
       id: null,
       pos: new THREE.Vector3(cellSize*2, 1.7, cellSize*2),
       vel: new THREE.Vector3(),
-      speed: 9.2,
-      accel: 24.0,
-      friction: 16.0,
       radius: 0.55,
       hp: 100,
       ammo: 50,
@@ -443,49 +443,81 @@
       if (!circleHitsWall(tryZ.x, tryZ.z, r)) player.pos.z = tryZ.z;
     }
 
+    // Doom-ish: accelerate towards wish direction (instead of simple lerp)
+    function accelerate(vx, vz, wishX, wishZ, wishSpeed, accel, dt){
+      const currentSpeed = vx*wishX + vz*wishZ; // dot(v, wishDir)
+      const addSpeed = wishSpeed - currentSpeed;
+      if (addSpeed <= 0) return { vx, vz };
+
+      let accelSpeed = accel * dt * wishSpeed;
+      if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+
+      return { vx: vx + accelSpeed*wishX, vz: vz + accelSpeed*wishZ };
+    }
+
+    function applyFriction(vx, vz, friction, dt){
+      const speed = Math.hypot(vx, vz);
+      if (speed < 1e-6) return { vx:0, vz:0 };
+
+      const drop = speed * friction * dt;
+      const newSpeed = Math.max(0, speed - drop);
+      const scale = newSpeed / speed;
+      return { vx: vx*scale, vz: vz*scale };
+    }
+
     let perfTime = 0;
     function movePlayer(dt){
+      // Camera forward (XZ)
       const forward = new THREE.Vector3();
       controls.getDirection(forward);
       forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).multiplyScalar(-1).normalize();
 
-      let ix = 0, iz = 0;
-      if (keys.has("KeyW")) iz += 1;
-      if (keys.has("KeyS")) iz -= 1;
-      if (keys.has("KeyA")) ix -= 1;
-      if (keys.has("KeyD")) ix += 1;
+      // FIXED RIGHT VECTOR (correct strafe direction)
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
 
-      const input = new THREE.Vector3();
-      input.addScaledVector(forward, iz);
-      input.addScaledVector(right, ix);
-      if (input.lengthSq() > 0) input.normalize();
+      // inputs
+      let f = 0, s = 0;
+      if (keys.has("KeyW")) f += 1;
+      if (keys.has("KeyS")) f -= 1;
+      if (keys.has("KeyA")) s -= 1;
+      if (keys.has("KeyD")) s += 1;
 
-      const target = input.multiplyScalar(player.speed);
-      const hv = new THREE.Vector3(player.vel.x, 0, player.vel.z);
+      // wish direction in world space
+      const wish = new THREE.Vector3()
+        .addScaledVector(forward, f)
+        .addScaledVector(right, s * STRAFE_BIAS);
 
-      if (target.lengthSq() > 0){
-        hv.lerp(target, 1 - Math.exp(-player.accel * dt));
+      let wishSpeed = MOVE_SPEED;
+      if (wish.lengthSq() > 0) {
+        wish.normalize();
       } else {
-        hv.lerp(new THREE.Vector3(), 1 - Math.exp(-player.friction * dt));
+        wishSpeed = 0;
       }
 
-      player.vel.x = hv.x;
-      player.vel.z = hv.z;
+      // friction then acceleration (classic-ish)
+      const fr = applyFriction(player.vel.x, player.vel.z, FRICTION, dt);
+      player.vel.x = fr.vx; player.vel.z = fr.vz;
 
+      if (wishSpeed > 0) {
+        const acc = accelerate(player.vel.x, player.vel.z, wish.x, wish.z, wishSpeed, ACCEL_GROUND, dt);
+        player.vel.x = acc.vx; player.vel.z = acc.vz;
+      }
+
+      // integrate + collide
       const newPos = player.pos.clone().addScaledVector(player.vel, dt);
       newPos.y = 1.7;
       collideAndSlide(newPos);
 
       controls.getObject().position.copy(player.pos);
 
-      const speedNow = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
-      const bob = Math.sin(perfTime*0.012 + speedNow*0.08) * Math.min(10, speedNow) * 0.08;
+      // weapon bob
+      const speedNow = Math.hypot(player.vel.x, player.vel.z);
+      const bob = Math.sin(perfTime*0.012 + speedNow*0.08) * Math.min(10, speedNow) * 0.09;
       weaponImg.style.transform = `translateX(-50%) translateY(${bob}px)`;
     }
 
     // =========================
-    // Networking (WebSocket)
+    // Networking
     // =========================
     let ws = null;
     let connected = false;
@@ -539,7 +571,6 @@
           }
 
           showToast(`Joined: ${msg.room}`);
-          // Göm join-menyn och lås musen direkt
           ui.style.display = "none";
           setTimeout(() => controls.lock(), 50);
           return;
@@ -582,6 +613,7 @@
           if (msg.id === player.id) {
             player.hp = msg.hp;
             player.pos.x = msg.x; player.pos.z = msg.z;
+            player.vel.set(0,0,0);
             controls.getObject().position.copy(player.pos);
             showToast("RESPAWN");
           } else {
@@ -605,12 +637,10 @@
       };
     }
 
-    document.getElementById("join").addEventListener("click", () => {
-      connectAndJoin();
-    });
+    document.getElementById("join").addEventListener("click", () => connectAndJoin());
 
     // =========================
-    // Input sending
+    // Input sending (world-space)
     // =========================
     function getYawPitch(){
       const yaw = controls.getObject().rotation.y;
@@ -622,17 +652,20 @@
       const forward = new THREE.Vector3();
       controls.getDirection(forward);
       forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).multiplyScalar(-1).normalize();
 
-      let ix = 0, iz = 0;
-      if (keys.has("KeyW")) iz += 1;
-      if (keys.has("KeyS")) iz -= 1;
-      if (keys.has("KeyA")) ix -= 1;
-      if (keys.has("KeyD")) ix += 1;
+      // FIXED RIGHT VECTOR (same as movement)
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
 
-      const v = new THREE.Vector3();
-      v.addScaledVector(forward, iz);
-      v.addScaledVector(right, ix);
+      let f = 0, s = 0;
+      if (keys.has("KeyW")) f += 1;
+      if (keys.has("KeyS")) f -= 1;
+      if (keys.has("KeyA")) s -= 1;
+      if (keys.has("KeyD")) s += 1;
+
+      const v = new THREE.Vector3()
+        .addScaledVector(forward, f)
+        .addScaledVector(right, s);
+
       if (v.lengthSq() > 0) v.normalize();
       return { ix: v.x, iz: v.z };
     }
@@ -656,7 +689,7 @@
     let inputSendAccum = 0;
 
     // =========================
-    // Render loop
+    // Loop
     // =========================
     const clock = new THREE.Clock();
 
@@ -706,7 +739,7 @@
 
       if (connected) {
         inputSendAccum += dt;
-        if (inputSendAccum >= 1/30) { // ~30Hz
+        if (inputSendAccum >= 1/30) {
           inputSendAccum = 0;
           const { yaw, pitch } = getYawPitch();
           const inp = computeWorldInput();
