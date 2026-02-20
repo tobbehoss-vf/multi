@@ -41,23 +41,80 @@
 
     #hud {
       position:fixed; left:12px; top:10px; color:#fff;
-      font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font: 13px ui-monospace, monospace;
       text-shadow: 0 2px 0 #000;
-      user-select:none;
-      white-space: pre;
-      z-index: 5;
+      user-select:none; white-space:pre;
+      z-index: 5; pointer-events:none;
+      display:none; /* replaced by hud-bar */
+    }
+    #weapon {
+      position: fixed; left: 50%; bottom: 50px;
+      transform: translateX(-50%);
+      width: min(560px, 75vw);
+      height: auto;
+      opacity: .97;
+      image-rendering: pixelated;
       pointer-events:none;
+      filter: drop-shadow(0 8px 0 rgba(0,0,0,.7));
+      z-index: 4;
     }
     #crosshair {
       position: fixed; left: 50%; top: 50%;
-      width: 10px; height: 10px;
       transform: translate(-50%, -50%);
-      border: 2px solid rgba(255,255,255,.85);
-      border-left: none; border-top: none;
-      rotate: 45deg;
-      pointer-events:none;
-      mix-blend-mode: screen;
+      pointer-events: none;
       z-index: 5;
+      width: 0; height: 0;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.92);
+    }
+    #crosshair::before {
+      width: 16px; height: 2px;
+      left: -8px; top: -1px;
+    }
+    #crosshair::after {
+      width: 2px; height: 16px;
+      left: -1px; top: -8px;
+    }
+
+    /* Hit flash overlay */
+    #hitflash {
+      position: fixed; inset:0;
+      pointer-events:none;
+      z-index:7;
+      background: rgba(220,0,0,0);
+      transition: background 0.08s;
+    }
+
+    /* Bottom Doom-style HUD bar */
+    #hud-bar {
+      position: fixed; bottom:0; left:0; right:0;
+      height: 56px;
+      background: #1a0000;
+      border-top: 3px solid #550000;
+      display: flex; align-items: center;
+      padding: 0 24px;
+      gap: 32px;
+      z-index: 5;
+      pointer-events: none;
+      font: bold 28px ui-monospace, monospace;
+      color: #ff4400;
+      text-shadow: 0 0 8px #ff2200;
+    }
+    .hud-item { display:flex; flex-direction:column; align-items:center; }
+    .hud-label { font-size:9px; letter-spacing:2px; color:#ff6600; opacity:0.7; font-weight:normal; margin-bottom:1px; }
+    .hud-value { line-height:1; }
+    #hud-face {
+      width:44px; height:44px; background:#cc2200;
+      border:2px solid #881100; border-radius:2px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:22px;
+    }
+    #hud-room {
+      font-size:11px; letter-spacing:2px; color:#ff8800;
+      opacity:0.6; margin-left:auto; font-weight:normal;
     }
     #toast {
       position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
@@ -66,17 +123,6 @@
       opacity: 0; transition: opacity .2s ease;
       pointer-events:none;
       z-index: 6;
-    }
-    #weapon {
-      position: fixed; left: 50%; bottom: -6px;
-      transform: translateX(-50%);
-      width: min(520px, 70vw);
-      height: auto;
-      opacity: .96;
-      image-rendering: pixelated;
-      pointer-events:none;
-      filter: drop-shadow(0 6px 0 rgba(0,0,0,.55));
-      z-index: 4;
     }
   </style>
 
@@ -96,21 +142,40 @@
       <h1>Doom-ish PvP</h1>
       <p class="row">
         <label>Namn:</label>
-        <input id="name" maxlength="16" value="tobbe" />
+        <input id="name" maxlength="16" placeholder="Ditt namn" />
         <label>Rum:</label>
         <input id="room" maxlength="16" value="lobby" />
         <button id="join">Join</button>
       </p>
-      <p><b>WASD</b> = gå/strafa • <b>Mus</b> = titta • <b>Klick</b> = skjut • <b>ESC</b> = meny</p>
+      <p><b>W</b>=framåt • <b>S</b>=bakåt • <b>A</b>=vänster • <b>D</b>=höger • <b>Mus</b>=sikta • <b>Klick</b>=skjut • <b>ESC</b>=meny</p>
       <p style="opacity:.78">Doom-känsla: hög fart + “slide”. (Inga hopp.)</p>
       <p id="status" style="opacity:.9"></p>
     </div>
   </div>
 
+  <div id="hitflash"></div>
   <div id="hud"></div>
   <div id="crosshair"></div>
   <div id="toast"></div>
   <img id="weapon" alt="weapon" />
+
+  <!-- Doom-style HUD bar -->
+  <div id="hud-bar">
+    <div class="hud-item">
+      <div class="hud-label">HÄLSA</div>
+      <div class="hud-value" id="hud-hp">100</div>
+    </div>
+    <div id="hud-face">😐</div>
+    <div class="hud-item">
+      <div class="hud-label">AMMO</div>
+      <div class="hud-value" id="hud-ammo">50</div>
+    </div>
+    <div class="hud-item" style="font-size:16px">
+      <div class="hud-label">SPELARE</div>
+      <div class="hud-value" id="hud-players">–</div>
+    </div>
+    <div id="hud-room">OFFLINE</div>
+  </div>
 
   <script type="module">
     import * as THREE from "three";
@@ -176,23 +241,84 @@
       if (connected) controls.lock();
     });
 
-    // weapon sprite
+    // ── VAPEN SPRITE (detaljerad hagelgevär pixel-art) ──────────────────────
     weaponImg.src = (() => {
+      const W = 320, H = 160;
       const c = document.createElement("canvas");
-      c.width = 240; c.height = 140;
+      c.width = W; c.height = H;
       const g = c.getContext("2d");
       g.imageSmoothingEnabled = false;
-      g.clearRect(0,0,c.width,c.height);
-      const px = (x,y,w,h,col)=>{ g.fillStyle=col; g.fillRect(x,y,w,h); };
-      px(40,70,160,50,"#2b2b2f");
-      px(55,55,120,20,"#3a3a40");
-      px(70,45,90,15,"#4a4a52");
-      px(150,62,55,10,"#1f1f22");
-      px(190,60,30,14,"#131316");
-      px(55,58,120,3,"#5a5a62");
-      px(95,95,55,40,"#2a1b18");
-      px(100,100,45,30,"#3a221d");
-      px(105,105,35,20,"#5a2a20");
+      g.clearRect(0,0,W,H);
+
+      const px = (x,y,w,h,col) => { g.fillStyle=col; g.fillRect(x,y,w,h); };
+
+      // Pipa övre (lång)
+      px(20,  42, 210, 10, "#111");
+      px(21,  43, 208,  4, "#3a3a3a");
+      px(21,  43, 208,  2, "#555");
+      px(228, 43,   6, 10, "#1a1a1a"); // mynning
+
+      // Pipa undre (magasin-rör)
+      px(50,  52, 178, 7,  "#1a1a1a");
+      px(51,  53, 176, 3,  "#333");
+
+      // Receiver (kropp)
+      px(50,  58, 120, 32, "#1e1e22");
+      px(52,  60, 116, 18, "#2a2a30");
+      px(54,  61, 112,  8, "#363640");
+      // reflex-linje
+      px(54,  62, 112,  2, "#4a4a55");
+
+      // Ejection port
+      px(90,  60,  30, 14, "#111");
+      px(91,  61,  28, 12, "#0a0a0a");
+
+      // Pump-handtag (trä)
+      px(120, 58,  45, 32, "#3a2010");
+      px(122, 60,  41, 10, "#5a3018");
+      px(124, 61,  37,  5, "#7a4820");
+      // pump-skruvar
+      px(128, 70,   4,  4, "#111");
+      px(148, 70,   4,  4, "#111");
+
+      // Kolv (trä)
+      px(170, 60,  70, 30, "#2a1808");
+      px(172, 62,  66, 12, "#3e2410");
+      px(174, 63,  62,  6, "#5a3418");
+      // kolv-platta
+      px(238, 55,   6, 40, "#111");
+      px(239, 56,   4, 38, "#222");
+
+      // Avtryckarbygel
+      g.strokeStyle="#333"; g.lineWidth=2;
+      g.beginPath(); g.arc(85, 90, 14, 0, Math.PI); g.stroke();
+      // Avtryckare
+      px(82, 82, 3, 12, "#222");
+
+      // Hand (vänster, pump)
+      px(110, 88, 60, 22, "#c07040");
+      px(112, 89, 56, 14, "#d08050");
+      px(114, 90, 52,  8, "#e09060");
+      // fingrar
+      for (let fi=0; fi<4; fi++) {
+        px(113+fi*13, 102, 10, 14, "#c07040");
+        px(114+fi*13, 103,  8,  8, "#d08050");
+      }
+
+      // Hand (höger, kolv)
+      px(195, 85, 50, 24, "#c07040");
+      px(197, 86, 46, 16, "#d08050");
+      px(199, 87, 42,  8, "#e09060");
+      // fingrar höger
+      for (let fi=0; fi<3; fi++) {
+        px(196+fi*14, 101, 11, 16, "#c07040");
+        px(197+fi*14, 102,  9,  9, "#d08050");
+      }
+
+      // Tumme
+      px(192, 80, 12, 10, "#c07040");
+      px(193, 81, 10,  6, "#d08050");
+
       return c.toDataURL();
     })();
 
@@ -465,22 +591,21 @@
       return { vx: vx*scale, vz: vz*scale };
     }
 
-    let perfTime = 0;
     function movePlayer(dt){
       // Camera forward (XZ)
       const forward = new THREE.Vector3();
       controls.getDirection(forward);
       forward.y = 0; forward.normalize();
 
-      // FIXED RIGHT VECTOR (correct strafe direction)
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
+      // Right vector for strafing
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
 
-      // inputs
+      // W=framåt, S=bakåt, A=strafe vänster, D=strafe höger
       let f = 0, s = 0;
-      if (keys.has("KeyW")) f += 1;
-      if (keys.has("KeyS")) f -= 1;
-      if (keys.has("KeyA")) s -= 1;
-      if (keys.has("KeyD")) s += 1;
+      if (keys.has("KeyW") || keys.has("ArrowUp"))    f += 1;
+      if (keys.has("KeyS") || keys.has("ArrowDown"))  f -= 1;
+      if (keys.has("KeyA") || keys.has("ArrowLeft"))  s -= 1;
+      if (keys.has("KeyD") || keys.has("ArrowRight")) s += 1;
 
       // wish direction in world space
       const wish = new THREE.Vector3()
@@ -601,9 +726,10 @@
         if (msg.t === "hit") {
           if (msg.to === player.id) {
             player.hp = msg.hp;
-            showToast("HIT!");
+            triggerHitFlash();
+            showToast("TRÄFFAD!");
           }
-          if (msg.from === player.id) showToast("Nice!");
+          if (msg.from === player.id) showToast("TRÄFF!");
           const o = others.get(msg.to);
           if (o) o.last.hp = msg.hp;
           return;
@@ -653,14 +779,13 @@
       controls.getDirection(forward);
       forward.y = 0; forward.normalize();
 
-      // FIXED RIGHT VECTOR (same as movement)
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
 
       let f = 0, s = 0;
-      if (keys.has("KeyW")) f += 1;
-      if (keys.has("KeyS")) f -= 1;
-      if (keys.has("KeyA")) s -= 1;
-      if (keys.has("KeyD")) s += 1;
+      if (keys.has("KeyW") || keys.has("ArrowUp"))    f += 1;
+      if (keys.has("KeyS") || keys.has("ArrowDown"))  f -= 1;
+      if (keys.has("KeyA") || keys.has("ArrowLeft"))  s -= 1;
+      if (keys.has("KeyD") || keys.has("ArrowRight")) s += 1;
 
       const v = new THREE.Vector3()
         .addScaledVector(forward, f)
@@ -672,18 +797,27 @@
 
     // shooting
     let shootCooldown = 0;
-    addEventListener("mousedown", () => {
+    addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
       if (!connected || !controls.isLocked) return;
       if (shootCooldown > 0) return;
-      if (player.ammo <= 0) return;
+      if (player.ammo <= 0) { showToast("TOMT! (R = ladda om)"); return; }
 
       player.ammo--;
       shootCooldown = 0.12;
-      weaponImg.style.filter = "drop-shadow(0 6px 0 rgba(0,0,0,.55)) brightness(1.25)";
-      setTimeout(()=> weaponImg.style.filter = "drop-shadow(0 6px 0 rgba(0,0,0,.55))", 60);
+      triggerMuzzleFlash();
 
       const { yaw, pitch } = getYawPitch();
       wsSend({ t:"shoot", yaw, pitch });
+    });
+
+    // Reload with R
+    addEventListener("keydown", e => {
+      if (e.code === "KeyR" && controls.isLocked) {
+        player.ammo = 50;
+        showToast("LADDAT!");
+        updateHUD();
+      }
     });
 
     let inputSendAccum = 0;
@@ -708,13 +842,40 @@
       }
     }
 
+    // Hit flash
+    const hitflash = document.getElementById("hitflash");
+    function triggerHitFlash(){
+      hitflash.style.background = "rgba(220,0,0,0.35)";
+      setTimeout(()=> hitflash.style.background = "rgba(220,0,0,0)", 150);
+    }
+
+    // Muzzle flash on weapon
+    function triggerMuzzleFlash(){
+      weaponImg.style.filter = "drop-shadow(0 8px 0 rgba(0,0,0,.7)) brightness(1.4) saturate(1.5)";
+      setTimeout(()=> weaponImg.style.filter = "drop-shadow(0 8px 0 rgba(0,0,0,.7))", 55);
+    }
+
+    const hudHp      = document.getElementById("hud-hp");
+    const hudAmmo    = document.getElementById("hud-ammo");
+    const hudFace    = document.getElementById("hud-face");
+    const hudPlayers = document.getElementById("hud-players");
+    const hudRoom    = document.getElementById("hud-room");
+
     function updateHUD(){
-      hud.textContent =
-        `ROOM ${player.room}\n` +
-        `HP   ${String(Math.max(0,player.hp)).padStart(3," ")}\n` +
-        `AMMO ${String(player.ammo).padStart(3," ")}\n` +
-        `WS   ${connected ? "ON" : "OFF"}\n` +
-        `ESC  MENU`;
+      const hp = Math.max(0, player.hp);
+      hudHp.textContent   = hp;
+      hudAmmo.textContent = player.ammo;
+      hudPlayers.textContent = others.size + 1;
+      hudRoom.textContent = connected ? `RUM: ${player.room}` : "OFFLINE";
+
+      // Face
+      if      (hp > 70) hudFace.textContent = "😐";
+      else if (hp > 40) hudFace.textContent = "😬";
+      else if (hp > 15) hudFace.textContent = "😰";
+      else              hudFace.textContent = "😵";
+
+      // HP color
+      hudHp.style.color = hp > 50 ? "#ff4400" : hp > 25 ? "#ffaa00" : "#ff0000";
     }
 
     function handleResize(){
@@ -726,6 +887,8 @@
       renderer.domElement.style.height = "100vh";
     }
     addEventListener("resize", handleResize);
+
+    let perfTime = 0;
 
     function tick(){
       const dt = Math.min(0.033, clock.getDelta());
