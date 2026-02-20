@@ -1,97 +1,100 @@
 // server.js
-// Minimal authoritative-ish WebSocket server for a browser FPS.
-// - Rooms
-// - Player states (pos/yaw/pitch/hp)
-// - Server tick broadcasts
-// - Server-authoritative hitscan (simple sphere hit)
-// NOTE: This is intentionally small. Not secure vs cheating; good for a prototype.
-
 import http from "http";
 import { WebSocketServer } from "ws";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const PORT = process.env.PORT || 3000;
+
+// ---------- Static file serving ----------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PUBLIC_DIR = path.join(__dirname, "public");
+
+function serveFile(res, filePath, contentType) {
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not found\n");
+      return;
+    }
+    res.writeHead(200, { "Content-Type": contentType });
+    res.end(data);
+  });
+}
+
+const server = http.createServer((req, res) => {
+  // Basic routing
+  if (req.url === "/" || req.url === "/index.html") {
+    return serveFile(res, path.join(PUBLIC_DIR, "index.html"), "text/html; charset=utf-8");
+  }
+
+  // Optional: serve other static assets if you add any later
+  if (req.url && req.url.startsWith("/public/")) {
+    const rel = req.url.replace("/public/", "");
+    const safe = rel.replace(/\.\./g, ""); // naive path traversal guard
+    const file = path.join(PUBLIC_DIR, safe);
+
+    const ext = path.extname(file).toLowerCase();
+    const type =
+      ext === ".js" ? "text/javascript; charset=utf-8" :
+      ext === ".css" ? "text/css; charset=utf-8" :
+      ext === ".png" ? "image/png" :
+      ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" :
+      "application/octet-stream";
+
+    return serveFile(res, file, type);
+  }
+
+  // Health check
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end("ok\n");
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not found\n");
+});
+
+// ---------- WebSocket game server ----------
+const wss = new WebSocketServer({ server });
 
 // ---- Config ----
 const TICK_HZ = 20;
 const DT = 1 / TICK_HZ;
-
 const PLAYER_RADIUS = 0.55;
-const PLAYER_EYE_Y = 1.7;
 const MAX_HP = 100;
 
-// movement tuning (Doom-ish)
+// movement tuning
 const SPEED = 9.2;
 const ACCEL = 24.0;
 const FRICTION = 16.0;
 
-// arena bounds (matches client tilemap-ish scale; keep generous)
+// super-simple bounds (we’ll keep it; can upgrade to real tile collision later)
 const BOUNDS = { minX: 1, maxX: 95, minZ: 1, maxZ: 63 };
 
-// ---- State ----
-/** @type {Map<string, Room>} */
+// ---- Rooms ----
 const rooms = new Map();
 
-function rid() {
-  return crypto.randomBytes(4).toString("hex");
-}
-
-function nowMs() {
-  return Date.now();
-}
-
-function clamp(v, a, b) {
-  return Math.max(a, Math.min(b, v));
-}
-
-function vecLen(x, z) {
-  return Math.sqrt(x * x + z * z);
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-function expSmoothingFactor(k, dt) {
-  return 1 - Math.exp(-k * dt);
-}
+function rid() { return crypto.randomBytes(4).toString("hex"); }
+function nowMs() { return Date.now(); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function expSmoothingFactor(k, dt){ return 1 - Math.exp(-k*dt); }
 
 function getOrCreateRoom(name) {
   const key = (name || "lobby").toLowerCase();
   let room = rooms.get(key);
   if (!room) {
-    room = {
-      name: key,
-      players: new Map(), // id -> player
-    };
+    room = { name: key, players: new Map() };
     rooms.set(key, room);
   }
   return room;
 }
 
-/**
- * @typedef {Object} Player
- * @property {string} id
- * @property {WebSocket} ws
- * @property {string} room
- * @property {string} name
- * @property {number} x
- * @property {number} z
- * @property {number} yaw
- * @property {number} pitch
- * @property {number} hp
- * @property {number} lastHeardMs
- * @property {number} vx
- * @property {number} vz
- * @property {number} inX
- * @property {number} inZ
- * @property {number} wantShoot
- * @property {number} shootYaw
- * @property {number} shootPitch
- */
-
 function spawnPoint(room) {
-  // simple deterministic-ish spawn positions
   const base = [
     { x: 8, z: 8 },
     { x: 84, z: 8 },
@@ -99,8 +102,7 @@ function spawnPoint(room) {
     { x: 84, z: 56 },
     { x: 46, z: 32 },
   ];
-  const i = room.players.size % base.length;
-  return base[i];
+  return base[room.players.size % base.length];
 }
 
 function broadcast(room, obj) {
@@ -110,128 +112,76 @@ function broadcast(room, obj) {
   }
 }
 
-// ---- Hitscan: ray vs sphere in XZ plane with eye height fixed ----
 function rayHitsPlayer(shooter, target, dirX, dirZ, maxDist = 60) {
-  // Treat players as cylinders; in 2D (XZ) ray vs circle.
-  // Ray origin = shooter (x,z)
-  const ox = shooter.x;
-  const oz = shooter.z;
-
-  const cx = target.x;
-  const cz = target.z;
+  const ox = shooter.x, oz = shooter.z;
+  const cx = target.x,  cz = target.z;
   const r = PLAYER_RADIUS;
 
-  // Solve closest approach along ray
-  // t = dot((c-o), d)
-  const dx = dirX;
-  const dz = dirZ;
-  const mx = cx - ox;
-  const mz = cz - oz;
-  const t = mx * dx + mz * dz;
+  const mx = cx - ox, mz = cz - oz;
+  const t = mx * dirX + mz * dirZ;
   if (t < 0 || t > maxDist) return null;
 
-  const px = ox + dx * t;
-  const pz = oz + dz * t;
+  const px = ox + dirX * t;
+  const pz = oz + dirZ * t;
   const dist2 = (cx - px) ** 2 + (cz - pz) ** 2;
-  if (dist2 <= r * r) return t;
-  return null;
+  return dist2 <= r*r ? t : null;
 }
 
-function yawPitchToDir(yaw, pitch) {
-  // We ignore pitch for hit test in this simplified prototype (Doom-ish hitscan)
-  // but keep it to allow future vertical aiming.
+function yawToDirXZ(yaw) {
   const dx = -Math.sin(yaw);
   const dz = -Math.cos(yaw);
-  // normalize
-  const l = Math.sqrt(dx * dx + dz * dz) || 1;
-  return { dx: dx / l, dz: dz / l };
+  const l = Math.sqrt(dx*dx + dz*dz) || 1;
+  return { dx: dx/l, dz: dz/l };
 }
 
-// ---- Server ----
-const server = http.createServer((req, res) => {
-  // basic health check
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("ok\n");
-});
-
-const wss = new WebSocketServer({ server });
-
 wss.on("connection", (ws) => {
-  /** @type {Player|null} */
   let player = null;
 
   ws.on("message", (data) => {
     let msg;
-    try {
-      msg = JSON.parse(String(data));
-    } catch {
-      return;
-    }
+    try { msg = JSON.parse(String(data)); } catch { return; }
 
-    // JOIN
     if (msg.t === "join") {
       const room = getOrCreateRoom(msg.room || "lobby");
       const id = rid();
       const sp = spawnPoint(room);
 
       player = {
-        id,
-        ws,
+        id, ws,
         room: room.name,
-        name: String(msg.name || "player").slice(0, 16),
-        x: sp.x,
-        z: sp.z,
-        yaw: 0,
-        pitch: 0,
+        name: String(msg.name || "player").slice(0,16),
+        x: sp.x, z: sp.z,
+        yaw: 0, pitch: 0,
         hp: MAX_HP,
         lastHeardMs: nowMs(),
-        vx: 0,
-        vz: 0,
-        inX: 0,
-        inZ: 0,
+        vx: 0, vz: 0,
+        inX: 0, inZ: 0,
         wantShoot: 0,
         shootYaw: 0,
-        shootPitch: 0,
+        shootPitch: 0
       };
 
       room.players.set(id, player);
 
-      // tell this client its id + current snapshot
-      ws.send(
-        JSON.stringify({
-          t: "welcome",
-          id,
-          room: room.name,
-          you: { x: player.x, z: player.z, hp: player.hp },
-          players: [...room.players.values()].map((p) => ({
-            id: p.id,
-            name: p.name,
-            x: p.x,
-            z: p.z,
-            yaw: p.yaw,
-            pitch: p.pitch,
-            hp: p.hp,
-          })),
-          ts: nowMs(),
-        })
-      );
+      ws.send(JSON.stringify({
+        t: "welcome",
+        id,
+        room: room.name,
+        you: { x: player.x, z: player.z, hp: player.hp },
+        players: [...room.players.values()].map(p => ({
+          id:p.id, name:p.name, x:p.x, z:p.z, yaw:p.yaw, pitch:p.pitch, hp:p.hp
+        })),
+        ts: nowMs()
+      }));
 
-      // tell others about new player
-      broadcast(room, {
-        t: "player_join",
-        p: { id, name: player.name, x: player.x, z: player.z, yaw: 0, pitch: 0, hp: player.hp },
-        ts: nowMs(),
-      });
+      broadcast(room, { t:"player_join", p:{ id, name: player.name, x: player.x, z: player.z, yaw:0, pitch:0, hp: player.hp }, ts: nowMs() });
       return;
     }
 
     if (!player) return;
-
     player.lastHeardMs = nowMs();
 
-    // INPUT (continuous)
     if (msg.t === "input") {
-      // expect ix, iz in [-1..1], yaw/pitch in radians
       player.inX = clamp(Number(msg.ix) || 0, -1, 1);
       player.inZ = clamp(Number(msg.iz) || 0, -1, 1);
       player.yaw = Number(msg.yaw) || 0;
@@ -239,7 +189,6 @@ wss.on("connection", (ws) => {
       return;
     }
 
-    // SHOOT (edge)
     if (msg.t === "shoot") {
       player.wantShoot = 1;
       player.shootYaw = Number(msg.yaw) || player.yaw;
@@ -247,11 +196,10 @@ wss.on("connection", (ws) => {
       return;
     }
 
-    // RENAME (optional)
     if (msg.t === "name") {
-      player.name = String(msg.name || player.name).slice(0, 16);
+      player.name = String(msg.name || player.name).slice(0,16);
       const room = getOrCreateRoom(player.room);
-      broadcast(room, { t: "player_name", id: player.id, name: player.name, ts: nowMs() });
+      broadcast(room, { t:"player_name", id: player.id, name: player.name, ts: nowMs() });
       return;
     }
   });
@@ -261,37 +209,25 @@ wss.on("connection", (ws) => {
     const room = rooms.get(player.room);
     if (!room) return;
     room.players.delete(player.id);
-    broadcast(room, { t: "player_leave", id: player.id, ts: nowMs() });
+    broadcast(room, { t:"player_leave", id: player.id, ts: nowMs() });
     if (room.players.size === 0) rooms.delete(room.name);
   });
 });
 
-// ---- Tick loop ----
 setInterval(() => {
   for (const room of rooms.values()) {
-    // simulate
     for (const p of room.players.values()) {
-      // simple timeout cleanup
       if (nowMs() - p.lastHeardMs > 30000) {
         try { p.ws.close(); } catch {}
         room.players.delete(p.id);
-        broadcast(room, { t: "player_leave", id: p.id, ts: nowMs() });
+        broadcast(room, { t:"player_leave", id: p.id, ts: nowMs() });
         continue;
       }
 
-      // movement: input is in camera-space on client, but we assume client already transforms to world-ish
-      // Here we treat inX/inZ as world-space for simplicity; client sends in world-space.
-      let ix = p.inX;
-      let iz = p.inZ;
-
-      // normalize input
+      // movement uses world-space input from client
+      let ix = p.inX, iz = p.inZ;
       const il = Math.hypot(ix, iz);
-      if (il > 1e-6) {
-        ix /= il;
-        iz /= il;
-      } else {
-        ix = 0; iz = 0;
-      }
+      if (il > 1e-6) { ix /= il; iz /= il; } else { ix = 0; iz = 0; }
 
       const targetVx = ix * SPEED;
       const targetVz = iz * SPEED;
@@ -310,76 +246,55 @@ setInterval(() => {
       p.z = clamp(p.z + p.vz * DT, BOUNDS.minZ, BOUNDS.maxZ);
     }
 
-    // handle shooting
+    // shooting
     for (const shooter of room.players.values()) {
       if (!shooter.wantShoot) continue;
       shooter.wantShoot = 0;
-
       if (shooter.hp <= 0) continue;
 
-      const { dx, dz } = yawPitchToDir(shooter.shootYaw, shooter.shootPitch);
+      const { dx, dz } = yawToDirXZ(shooter.shootYaw);
 
-      let best = { id: null, t: Infinity };
+      let bestId = null;
+      let bestT = Infinity;
+
       for (const target of room.players.values()) {
         if (target.id === shooter.id) continue;
         if (target.hp <= 0) continue;
-
-        const hitT = rayHitsPlayer(shooter, target, dx, dz, 60);
-        if (hitT !== null && hitT < best.t) best = { id: target.id, t: hitT };
+        const t = rayHitsPlayer(shooter, target, dx, dz, 60);
+        if (t !== null && t < bestT) { bestT = t; bestId = target.id; }
       }
 
-      if (best.id) {
-        const victim = room.players.get(best.id);
+      if (bestId) {
+        const victim = room.players.get(bestId);
         if (victim) {
           victim.hp -= 10;
           if (victim.hp <= 0) {
             victim.hp = 0;
-
-            // respawn after short delay
             setTimeout(() => {
               if (!room.players.has(victim.id)) return;
               const sp = spawnPoint(room);
-              victim.x = sp.x;
-              victim.z = sp.z;
+              victim.x = sp.x; victim.z = sp.z;
               victim.vx = 0; victim.vz = 0;
               victim.hp = MAX_HP;
-              // notify respawn
-              broadcast(room, { t: "respawn", id: victim.id, x: victim.x, z: victim.z, hp: victim.hp, ts: nowMs() });
+              broadcast(room, { t:"respawn", id:victim.id, x:victim.x, z:victim.z, hp:victim.hp, ts: nowMs() });
             }, 1200);
           }
-
-          broadcast(room, {
-            t: "hit",
-            from: shooter.id,
-            to: victim.id,
-            hp: victim.hp,
-            ts: nowMs(),
-          });
+          broadcast(room, { t:"hit", from: shooter.id, to: victim.id, hp: victim.hp, ts: nowMs() });
         }
       }
 
-      // broadcast shot event (for muzzle flash / sound later)
-      broadcast(room, { t: "shot", id: shooter.id, yaw: shooter.shootYaw, ts: nowMs() });
+      broadcast(room, { t:"shot", id: shooter.id, yaw: shooter.shootYaw, ts: nowMs() });
     }
 
-    // broadcast snapshot
-    const snapshot = {
+    // snapshot
+    broadcast(room, {
       t: "state",
       ts: nowMs(),
-      players: [...room.players.values()].map((p) => ({
-        id: p.id,
-        name: p.name,
-        x: p.x,
-        z: p.z,
-        yaw: p.yaw,
-        pitch: p.pitch,
-        hp: p.hp,
-      })),
-    };
-    broadcast(room, snapshot);
+      players: [...room.players.values()].map(p => ({
+        id:p.id, name:p.name, x:p.x, z:p.z, yaw:p.yaw, pitch:p.pitch, hp:p.hp
+      }))
+    });
   }
 }, 1000 / TICK_HZ);
 
-server.listen(PORT, () => {
-  console.log(`WS server listening on :${PORT}`);
-});
+server.listen(PORT, () => console.log("Listening on", PORT));
