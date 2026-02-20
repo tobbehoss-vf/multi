@@ -1,5 +1,5 @@
 {
-  "name": "doomish-ws-server",
+  "name": "doomish-render-all-in-one",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
