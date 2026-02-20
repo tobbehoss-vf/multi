@@ -241,86 +241,140 @@
       if (connected) controls.lock();
     });
 
-    // ── VAPEN SPRITE (detaljerad hagelgevär pixel-art) ──────────────────────
+    // ── VAPEN SPRITE (hagelgevär, framåtriktat perspektiv) ──────────────────
     weaponImg.src = (() => {
-      const W = 320, H = 160;
+      const W = 320, H = 200;
       const c = document.createElement("canvas");
       c.width = W; c.height = H;
       const g = c.getContext("2d");
       g.imageSmoothingEnabled = false;
       g.clearRect(0,0,W,H);
-
       const px = (x,y,w,h,col) => { g.fillStyle=col; g.fillRect(x,y,w,h); };
 
-      // Pipa övre (lång)
-      px(20,  42, 210, 10, "#111");
-      px(21,  43, 208,  4, "#3a3a3a");
-      px(21,  43, 208,  2, "#555");
-      px(228, 43,   6, 10, "#1a1a1a"); // mynning
+      // Perspektiv: pipa pekar rakt in i skärmen, mot mitten-vänster
+      // Pipa (cirkulär mynning, perspektivkomprimerad)
+      // Mynning – stor cirkel, mörkare inre
+      g.fillStyle = "#0a0a0a";
+      g.beginPath(); g.ellipse(108, 52, 18, 10, 0, 0, Math.PI*2); g.fill();
+      g.fillStyle = "#1a1a1a";
+      g.beginPath(); g.ellipse(108, 52, 14, 7, 0, 0, Math.PI*2); g.fill();
+      g.fillStyle = "#000";
+      g.beginPath(); g.ellipse(108, 52, 9, 5, 0, 0, Math.PI*2); g.fill();
+      // Mynningskant
+      g.strokeStyle = "#3a3a3a"; g.lineWidth = 2;
+      g.beginPath(); g.ellipse(108, 52, 18, 10, 0, 0, Math.PI*2); g.stroke();
 
-      // Pipa undre (magasin-rör)
-      px(50,  52, 178, 7,  "#1a1a1a");
-      px(51,  53, 176, 3,  "#333");
+      // Pipa – övre sida (topp-yta perspektiv)
+      px(108, 44, 160, 8, "#2a2a2a");
+      px(110, 45, 158, 3, "#444");
+      px(110, 45, 158, 1, "#555");
+      // Pipa – sida (höger sida perspektiv)
+      px(108, 52, 162, 20, "#1a1a1a");
+      px(110, 53, 160, 6, "#2e2e2e");
+      px(112, 53, 158, 3, "#363636");
 
-      // Receiver (kropp)
-      px(50,  58, 120, 32, "#1e1e22");
-      px(52,  60, 116, 18, "#2a2a30");
-      px(54,  61, 112,  8, "#363640");
-      // reflex-linje
-      px(54,  62, 112,  2, "#4a4a55");
+      // Underpipa / magasin-rör
+      px(108, 72, 140, 10, "#111");
+      px(110, 73, 138, 4, "#222");
 
+      // Receiver (kropp) – stor låda
+      px(210, 40, 80, 52, "#1a1a1f");
+      px(212, 42, 76, 20, "#252528");
+      px(214, 43, 72, 8, "#333336");
+      px(214, 44, 72, 2, "#46464a"); // reflex-linje
       // Ejection port
-      px(90,  60,  30, 14, "#111");
-      px(91,  61,  28, 12, "#0a0a0a");
+      px(220, 50, 34, 18, "#0d0d0d");
+      px(222, 52, 30, 14, "#080808");
 
-      // Pump-handtag (trä)
-      px(120, 58,  45, 32, "#3a2010");
-      px(122, 60,  41, 10, "#5a3018");
-      px(124, 61,  37,  5, "#7a4820");
-      // pump-skruvar
-      px(128, 70,   4,  4, "#111");
-      px(148, 70,   4,  4, "#111");
+      // Pump-handtag (trä, perspektiv)
+      px(155, 58, 52, 36, "#2a1808");
+      px(157, 60, 48, 14, "#3e2410");
+      px(159, 61, 44, 6, "#5c3618");
+      // Pump-ränder
+      for(let i=0;i<4;i++) px(160+i*10, 58, 2, 36, "#1e0f04");
 
-      // Kolv (trä)
-      px(170, 60,  70, 30, "#2a1808");
-      px(172, 62,  66, 12, "#3e2410");
-      px(174, 63,  62,  6, "#5a3418");
-      // kolv-platta
-      px(238, 55,   6, 40, "#111");
-      px(239, 56,   4, 38, "#222");
+      // Kolv (trä, perspektiv)
+      px(288, 44, 28, 52, "#1e0e04");
+      px(290, 46, 24, 20, "#2e1a08");
+      px(292, 47, 20, 8, "#3e2410");
+      // Kolfplatta
+      px(312, 38, 6, 62, "#0a0a0a");
+      px(313, 39, 4, 60, "#151515");
 
-      // Avtryckarbygel
-      g.strokeStyle="#333"; g.lineWidth=2;
-      g.beginPath(); g.arc(85, 90, 14, 0, Math.PI); g.stroke();
-      // Avtryckare
-      px(82, 82, 3, 12, "#222");
+      // Avtryckarbygel + avtryckare
+      g.strokeStyle = "#2a2a2a"; g.lineWidth = 3;
+      g.beginPath(); g.arc(248, 100, 16, 0, Math.PI); g.stroke();
+      px(245, 84, 4, 16, "#1a1a1a");
 
-      // Hand (vänster, pump)
-      px(110, 88, 60, 22, "#c07040");
-      px(112, 89, 56, 14, "#d08050");
-      px(114, 90, 52,  8, "#e09060");
-      // fingrar
-      for (let fi=0; fi<4; fi++) {
-        px(113+fi*13, 102, 10, 14, "#c07040");
-        px(114+fi*13, 103,  8,  8, "#d08050");
+      // Vänster hand (runt pump)
+      px(148, 92, 70, 28, "#b06535");
+      px(150, 93, 66, 16, "#c87848");
+      px(152, 94, 62, 8, "#daa060");
+      // Tumme vänster
+      px(144, 88, 16, 14, "#b06535");
+      px(146, 90, 12, 8, "#c87848");
+      // Fingrar vänster (fyra)
+      for(let i=0;i<4;i++){
+        px(150+i*15, 118, 12, 20, "#b06535");
+        px(152+i*15, 120, 8, 12, "#c87848");
       }
 
-      // Hand (höger, kolv)
-      px(195, 85, 50, 24, "#c07040");
-      px(197, 86, 46, 16, "#d08050");
-      px(199, 87, 42,  8, "#e09060");
-      // fingrar höger
-      for (let fi=0; fi<3; fi++) {
-        px(196+fi*14, 101, 11, 16, "#c07040");
-        px(197+fi*14, 102,  9,  9, "#d08050");
+      // Höger hand (runt pistolgrepp)
+      px(230, 96, 58, 30, "#b06535");
+      px(232, 98, 54, 18, "#c87848");
+      px(234, 99, 50, 8, "#daa060");
+      // Tumme höger
+      px(226, 92, 14, 16, "#b06535");
+      // Fingrar höger
+      for(let i=0;i<3;i++){
+        px(232+i*16, 124, 13, 22, "#b06535");
+        px(234+i*16, 126, 9, 14, "#c87848");
       }
-
-      // Tumme
-      px(192, 80, 12, 10, "#c07040");
-      px(193, 81, 10,  6, "#d08050");
 
       return c.toDataURL();
     })();
+
+    // ── BULLET TRACERS (visuella skott i 3D) ────────────────────────────────
+    const tracers = [];
+
+    function spawnTracer(from, dir){
+      const geo = new THREE.CylinderGeometry(0.04, 0.04, 0.8, 4);
+      geo.rotateX(Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffee44 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(from);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), dir.clone().normalize());
+      scene.add(mesh);
+      tracers.push({ mesh, dir: dir.clone().normalize(), life: 0.12, speed: 80 });
+    }
+
+    function updateTracers(dt){
+      for(let i = tracers.length-1; i >= 0; i--){
+        const t = tracers[i];
+        t.mesh.position.addScaledVector(t.dir, t.speed * dt);
+        t.life -= dt;
+        if(t.life <= 0){
+          scene.remove(t.mesh);
+          t.mesh.geometry.dispose();
+          tracers.splice(i, 1);
+        }
+      }
+    }
+
+    // ── HIT DETECTION (lokal raycaster mot andra spelare) ───────────────────
+    const localRaycaster = new THREE.Raycaster();
+
+    function localShootRaycast(){
+      // Skjut en ray från kameran rakt framåt
+      localRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const targets = [...others.values()].map(o => o.sprite);
+      const hits = localRaycaster.intersectObjects(targets);
+      if(hits.length > 0){
+        const hitSprite = hits[0].object;
+        const hitOther = [...others.values()].find(o => o.sprite === hitSprite);
+        if(hitOther) showToast(`TRÄFF på ${hitOther.last.name || "spelare"}!`);
+      }
+    }
 
     // =========================
     // Procedural textures (retro)
@@ -807,6 +861,16 @@
       shootCooldown = 0.12;
       triggerMuzzleFlash();
 
+      // Spawn tracer från kameran framåt
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      const from = camera.position.clone().addScaledVector(dir, 0.5);
+      spawnTracer(from, dir);
+
+      // Lokal hit-check (visuell feedback direkt)
+      localShootRaycast();
+
+      // Skicka till server
       const { yaw, pitch } = getYawPitch();
       wsSend({ t:"shoot", yaw, pitch });
     });
@@ -911,6 +975,7 @@
       }
 
       updateOthers(dt);
+      updateTracers(dt);
       updateHUD();
 
       renderer.render(scene, camera);
