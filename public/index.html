@@ -314,22 +314,9 @@
     let weaponBobT = 0;
     let weaponKick = 0;
 
-    // Vapenscen för separat djup-pass
-    const weaponScene = new THREE.Scene();
-    const weaponCamera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.01, 10);
-    // weaponCamera behöver inte röra sig – vapnet är relativt kameran i weaponScene
-    // Vi kopierar kamerans world-transform till weaponCamera varje frame
-    weaponScene.add(weaponCamera);
-    const weaponGroupCopy = weaponGroup.clone();
-    weaponGroupCopy.visible = true;
-    weaponScene.add(weaponGroupCopy);
-    weaponScene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    const wSceneLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    wSceneLight.position.set(1, 2, 2);
-    weaponScene.add(wSceneLight);
 
-    controls.addEventListener("lock", () => { weaponGroup.visible = true; weaponGroupCopy.visible = true; });
-    controls.addEventListener("unlock", () => { weaponGroup.visible = false; weaponGroupCopy.visible = false; });
+    controls.addEventListener("lock", () => { weaponGroup.visible = true; });
+    controls.addEventListener("unlock", () => { weaponGroup.visible = false; });
 
     // ── BULLET TRACERS (visuella skott i 3D) ────────────────────────────────
     const tracers = [];
@@ -441,106 +428,94 @@
     wallInst.instanceMatrix.needsUpdate = true;
 
     // =========================
-    // Other players
+    // Other players – 3D humanoid meshes
     // =========================
-    function nearest(tex){
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      return tex;
-    }
-
-    function makePlayerSpriteTexture(){
-      const c = document.createElement("canvas");
-      c.width = 128; c.height = 192; // högt för människoproportioner
-      const g = c.getContext("2d");
-      g.clearRect(0,0,c.width,c.height);
-      const px=(x,y,w,h,col)=>{ g.fillStyle=col; g.fillRect(x,y,w,h); };
-
-      // ── Huvud ──
-      px(44, 8,  40, 38, "#e8c090");   // ansikte
-      px(44, 8,  40,  8, "#3a2208");   // hår topp
-      px(44, 8,   6, 20, "#3a2208");   // hår vänster
-      px(78, 8,   6, 20, "#3a2208");   // hår höger
-      px(54, 28,  8,  6, "#c8a070");   // näsa skugga
-      px(52, 36, 10,  4, "#c07858");   // mun
-      px(52, 20,  8,  6, "#fff");      // öga vänster vit
-      px(66, 20,  8,  6, "#fff");      // öga höger vit
-      px(54, 21,  5,  5, "#2a4080");   // iris vänster
-      px(68, 21,  5,  5, "#2a4080");   // iris höger
-      px(55, 22,  3,  3, "#000");      // pupill vänster
-      px(69, 22,  3,  3, "#000");      // pupill höger
-      px(51, 19,  10, 2, "#3a2208");   // ögonbryn vänster
-      px(65, 19,  10, 2, "#3a2208");   // ögonbryn höger
-
-      // ── Hals ──
-      px(56, 46,  16, 10, "#d8a878");
-
-      // ── Kropp (tröja) ──
-      px(28, 56,  72, 60, "#2a4888");  // kropp blå
-      px(30, 58,  68, 20, "#3a58a8");  // bröst highlight
-      px(28, 56,   4, 60, "#1a3060");  // vänster skugga
-      px(96, 56,   4, 60, "#1a3060");  // höger skugga
-
-      // ── Armar ──
-      // Vänster arm
-      px(8,  56,  22, 48, "#2a4888");  // arm blå
-      px(8,  98,  22, 16, "#d8a878");  // handled
-      px(4, 108,  26, 20, "#c89868");  // hand
-      // Höger arm
-      px(98, 56,  22, 48, "#2a4888");
-      px(98, 98,  22, 16, "#d8a878");
-      px(98,108,  26, 20, "#c89868");
-
-      // ── Ben (byxor) ──
-      px(36,116,  24, 58, "#1a1a2e"); // vänster ben
-      px(68,116,  24, 58, "#1a1a2e"); // höger ben
-      px(38,116,  12, 24, "#22223a"); // vänster skugga
-      px(70,116,  12, 24, "#22223a"); // höger skugga
-
-      // ── Skor ──
-      px(32,170,  28, 14, "#222");    // vänster sko
-      px(68,170,  28, 14, "#222");    // höger sko
-      px(32,170,  28,  4, "#444");    // sko highlight
-
-      const tex = new THREE.CanvasTexture(c);
-      return nearest(tex);
-    }
-    const playerTex = makePlayerSpriteTexture();
     const others = new Map();
+
+    // Delade material för alla spelare
+    const pSkin   = new THREE.MeshLambertMaterial({ color: 0xe8b880 });
+    const pShirt  = new THREE.MeshLambertMaterial({ color: 0x2255aa });
+    const pPants  = new THREE.MeshLambertMaterial({ color: 0x223366 });
+    const pShoe   = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const pHair   = new THREE.MeshLambertMaterial({ color: 0x2a1a08 });
+    const pDead   = new THREE.MeshLambertMaterial({ color: 0x444444 });
+
+    function makeHumanoid(){
+      const g = new THREE.Group();
+
+      const add = (geo, mat, x, y, z) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(x, y, z);
+        m.userData.mat = mat; // spara för dödfärg-byte
+        g.add(m);
+        return m;
+      };
+
+      // Huvud
+      add(new THREE.BoxGeometry(0.42, 0.46, 0.40), pSkin,  0,  1.68, 0);
+      add(new THREE.BoxGeometry(0.44, 0.16, 0.42), pHair,  0,  1.87, 0);  // hår
+      // Ögon
+      add(new THREE.BoxGeometry(0.09, 0.07, 0.05), pShoe,  0.10, 1.70, 0.19);
+      add(new THREE.BoxGeometry(0.09, 0.07, 0.05), pShoe, -0.10, 1.70, 0.19);
+
+      // Kropp
+      add(new THREE.BoxGeometry(0.60, 0.70, 0.32), pShirt, 0, 1.10, 0);
+
+      // Armar
+      add(new THREE.BoxGeometry(0.18, 0.60, 0.18), pShirt,  0.39, 1.10, 0);
+      add(new THREE.BoxGeometry(0.18, 0.60, 0.18), pShirt, -0.39, 1.10, 0);
+      add(new THREE.BoxGeometry(0.15, 0.28, 0.15), pSkin,   0.39, 0.65, 0); // handled/hand
+      add(new THREE.BoxGeometry(0.15, 0.28, 0.15), pSkin,  -0.39, 0.65, 0);
+
+      // Ben
+      add(new THREE.BoxGeometry(0.22, 0.62, 0.22), pPants,  0.15, 0.44, 0);
+      add(new THREE.BoxGeometry(0.22, 0.62, 0.22), pPants, -0.15, 0.44, 0);
+      add(new THREE.BoxGeometry(0.22, 0.30, 0.22), pSkin,   0.15, 0.02, 0);
+      add(new THREE.BoxGeometry(0.22, 0.30, 0.22), pSkin,  -0.15, 0.02, 0);
+
+      // Skor
+      add(new THREE.BoxGeometry(0.24, 0.12, 0.34), pShoe,  0.15, -0.16, 0.05);
+      add(new THREE.BoxGeometry(0.24, 0.12, 0.34), pShoe, -0.15, -0.16, 0.05);
+
+      return g;
+    }
 
     function makeNameLabel(name){
       const c = document.createElement("canvas");
-      c.width = 256; c.height = 64;
+      c.width = 256; c.height = 48;
       const g = c.getContext("2d");
-      g.clearRect(0,0,256,64);
-      g.fillStyle = "rgba(0,0,0,0.35)";
-      g.fillRect(0, 8, 256, 40);
-      g.font = "22px ui-monospace, monospace";
+      g.clearRect(0,0,256,48);
+      g.fillStyle = "rgba(0,0,0,0.5)";
+      g.fillRect(4, 4, 248, 40);
+      g.font = "bold 22px Arial, sans-serif";
       g.fillStyle = "#fff";
       g.textAlign = "center";
-      g.fillText(name, 128, 36);
+      g.fillText(name, 128, 30);
       const tex = new THREE.CanvasTexture(c);
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
+      tex.magFilter = THREE.LinearFilter;
       return tex;
     }
 
     function ensureOther(id, name){
       if (others.has(id)) return others.get(id);
 
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: playerTex, transparent: true }));
-      sprite.position.set(0, 1.8, 0);
-      sprite.scale.set(1.4, 2.8, 1); // smal och hög = människa
-      scene.add(sprite);
+      const humanoid = makeHumanoid();
+      scene.add(humanoid);
 
-      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameLabel(name), transparent:true }));
-      label.position.set(0, 3.3, 0);
-      label.scale.set(3.2, 0.8, 1);
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameLabel(name), transparent: true, depthTest: false }));
+      label.scale.set(2.2, 0.55, 1);
       scene.add(label);
 
+      // Muzzle flash för motståndare
+      const enemyFlashLight = new THREE.PointLight(0xff8800, 0, 5);
+      humanoid.add(enemyFlashLight);
+      enemyFlashLight.position.set(0.42, 1.10, -0.5); // ungefär vid hand/vapnet
+
       const o = {
-        sprite,
+        humanoid,
         label,
+        flashLight: enemyFlashLight,
+        flashLife: 0,
         last: { x:0, z:0, yaw:0, pitch:0, hp:100, name },
         render: { x:0, z:0 }
       };
@@ -551,7 +526,7 @@
     function removeOther(id){
       const o = others.get(id);
       if (!o) return;
-      scene.remove(o.sprite);
+      scene.remove(o.humanoid);
       scene.remove(o.label);
       others.delete(id);
     }
@@ -639,7 +614,7 @@
       forward.y = 0; forward.normalize();
 
       // Right vector for strafing
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
 
       // W=framåt, S=bakåt, A=strafe vänster, D=strafe höger
       let f = 0, s = 0;
@@ -684,9 +659,6 @@
       weaponKick = Math.max(0, weaponKick - 0.005);
       const wp = new THREE.Vector3(0.22 + bobX, -0.20 + bobY + weaponKick, -0.30);
       weaponGroup.position.copy(wp);
-      // Synka kopian i weaponScene
-      weaponGroupCopy.position.copy(wp);
-      weaponGroupCopy.rotation.copy(weaponGroup.rotation);
     }
 
     // =========================
@@ -777,6 +749,12 @@
             showToast("TRÄFFAD!");
           }
           if (msg.from === player.id) showToast("TRÄFF!");
+          // Visa muzzle flash på motståndaren som sköt
+          const shooter = others.get(msg.from);
+          if (shooter) {
+            shooter.flashLife = 1.0;
+            shooter.flashLight.intensity = 5;
+          }
           const o = others.get(msg.to);
           if (o) o.last.hp = msg.hp;
           return;
@@ -838,7 +816,7 @@
       controls.getDirection(forward);
       forward.y = 0; forward.normalize();
 
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), forward).normalize();
 
       let f = 0, s = 0;
       if (keys.has("KeyW") || keys.has("ArrowUp"))    f += 1;
@@ -902,12 +880,33 @@
         const tx = o.last.x, tz = o.last.z;
         o.render.x += (tx - o.render.x) * interp;
         o.render.z += (tz - o.render.z) * interp;
-        o.sprite.position.set(o.render.x, 1.7, o.render.z);
-        o.label.position.set(o.render.x, 3.3, o.render.z);
 
+        // y=0 = golvet, figuren är ~1.9 hög, sätt origin vid fötterna
+        o.humanoid.position.set(o.render.x, 0, o.render.z);
+
+        // Vänd figuren mot kameran (yaw från servern om tillgänglig)
+        if (o.last.yaw !== undefined) {
+          o.humanoid.rotation.y = o.last.yaw + Math.PI;
+        }
+
+        // Namnlapp ovanför huvud
+        o.label.position.set(o.render.x, 2.4, o.render.z);
+
+        // Dödfärg (byt material bara när status ändras)
         const hp = o.last.hp ?? 100;
-        const shade = hp <= 0 ? 0.25 : 0.95;
-        o.sprite.material.color.setScalar(shade);
+        const alive = hp > 0;
+        if (o.aliveLast === undefined) o.aliveLast = alive;
+        if (alive !== o.aliveLast) {
+          o.aliveLast = alive;
+          o.humanoid.traverse(m => {
+            if (m.isMesh) m.material = alive ? m.userData.mat : pDead;
+          });
+        }
+// Animera motståndarens muzzle flash
+        if (o.flashLife > 0) {
+          o.flashLife = Math.max(0, o.flashLife - dt * 18);
+          o.flashLight.intensity = o.flashLife * 5;
+        }
       }
     }
 
