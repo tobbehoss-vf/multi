@@ -1057,42 +1057,62 @@
     // Shotgun cooldown (single shot)
     let shootCooldown = 0;
 
-    // SMG burst control
-    let smgBurstActive = false;
-    let smgBurstCooldown = 0;
-    let smgTriggerHeld = false;  
-    function startSmgBurst() {
-      if (smgBurstActive || smgBurstCooldown > 0) return;
+   // SMG burst control
+let smgBurstActive = false;
+let smgBurstCooldown = 0;
+let smgTriggerHeld = false;
+
+function startSmgBurst() {
+  if (smgBurstActive || smgBurstCooldown > 0) return;
+  if (!controls.isLocked) return;
+
+  // 3 shots/sec, 2s burst => 6 shots
+  const shots = 6;
+  const intervalMs = 333;
+
+  smgBurstActive = true;
+  smgBurstCooldown = 0.4; // exactly the burst length
+
+  for (let i = 0; i < shots; i++) {
+    setTimeout(() => {
       if (!controls.isLocked) return;
+      if (player.hp <= 0) return;
 
-      // Always 2s burst, 3 shots (0.1s interval)
-      const shots = 3;
-      const intervalMs = 100;
+      const ok = doSingleShot();
+      if (ok) playSound("smg");
 
-      smgBurstActive = true;
-      smgBurstCooldown = 2.05; // small margin
+      if (i === shots - 1) {
+        smgBurstActive = false;
+        smgBurstCooldown = 0; // IMPORTANT: allow immediate repeat
 
-      for (let i = 0; i < shots; i++) {
-        setTimeout(() => {
-          if (!controls.isLocked) return;
-          if (player.hp <= 0) return;
-
-          // per bullet sound + shot
-          const ok = doSingleShot();
-          if (ok) playSound("smg");
-
-          if (i === shots - 1) {
-  smgBurstActive = false;
-
-  // AUTOREPEAT
-  if (smgTriggerHeld) {
-    startSmgBurst();
+        // AUTOREPEAT
+        if (smgTriggerHeld) startSmgBurst();
+      }
+    }, i * intervalMs);
   }
 }
-        }, i * intervalMs);
-      }
-    }
 
+addEventListener("mousedown", e => {
+  if (e.button !== 0 || !controls.isLocked) return;
+
+  if (currentWeapon === "shotgun") {
+    if (shootCooldown > 0) return;
+    if (!doSingleShot()) return;
+
+    playSound("shoot");
+    shootCooldown = 0.7;
+    return;
+  }
+
+  if (currentWeapon === "smg") {
+    smgTriggerHeld = true;
+    startSmgBurst();
+  }
+});
+
+addEventListener("mouseup", e => {
+  if (e.button === 0) smgTriggerHeld = false;
+});
     addEventListener("mousedown", e => {
       if (e.button !== 0 || !controls.isLocked) return;
 
