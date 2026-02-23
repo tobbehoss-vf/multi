@@ -412,7 +412,7 @@
     // ── BULLET TRACERS ───────────────────────────────────────────────────────
     // Bygg tracer-textur (gul glödande stav)
     const tracerCanvas = document.createElement('canvas');
-    tracerCanvas.width = 32; tracerCanvas.height = 8;
+    tracerCanvas.width = 16; tracerCanvas.height = 4;
     const tCtx = tracerCanvas.getContext('2d');
     const tGrad = tCtx.createLinearGradient(0,0,32,0);
     tGrad.addColorStop(0,   'rgba(255,255,200,0)');
@@ -427,7 +427,7 @@
 
     function spawnTracer(from, dir){
       // Kula: synlig cylinder + glödande sprite
-      const length = 1.2;
+      const length = 1;
       const geo = new THREE.CylinderGeometry(0.02, 0.02, length, 6);
       geo.rotateX(Math.PI / 2);
       const mat = new THREE.MeshBasicMaterial({ color: 0xffee66 });
