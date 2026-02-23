@@ -793,7 +793,7 @@
       if ((keys.has("Space")) && player.onGround) {
         player.vel.y = JUMP_SPEED;
         player.onGround = false;
-        playSound('jump');
+        
       }
 
       // XZ-rörelse
@@ -823,7 +823,7 @@
       // Mark-kollision
       const wasAbove = !player.onGround;
       if (player.pos.y <= floorY) {
-        if (wasAbove && player.vel.y < -3) playSound('land');
+        if (wasAbove && player.vel.y < -3) ;
         player.pos.y = floorY;
         player.vel.y = 0;
         player.onGround = true;
