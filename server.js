@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
+app.use(express.static('public'));
 
 function serveFile(res, filePath, contentType) {
   fs.readFile(filePath, (err, data) => {
