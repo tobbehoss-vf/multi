@@ -26,16 +26,17 @@ const MIME = {
   ".svg":  "image/svg+xml",
   ".ico":  "image/x-icon",
   ".json": "application/json",
+  ".mp3":  "audio/mpeg",
+  ".wav":  "audio/wav",
+  ".ogg":  "audio/ogg",
 };
 
 function serveStatic(req, res) {
-  // Normalize URL: strip query string, default to index.html
   let urlPath = req.url.split("?")[0];
   if (urlPath === "/") urlPath = "/index.html";
 
   const filePath = path.join(PUBLIC_DIR, urlPath);
 
-  // Security: make sure we don't escape the public dir
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403); res.end("Forbidden");
     return;
@@ -71,7 +72,7 @@ const TICK_HZ = 30;
 const DT = 1 / TICK_HZ;
 
 const MAX_HP = 100;
-const DAMAGE = 25;
+const DAMAGE = 33;            // ✅ 33 per skott
 const RESPAWN_MS = 1200;
 
 const PLAYER_RADIUS = 0.55;
@@ -145,7 +146,7 @@ function getOrCreateRoom(name) {
   const key = (name || "lobby").toLowerCase();
   let room = rooms.get(key);
   if (!room) {
-    room = { name: key, players: new Map() };
+    room = { name: key, players: new Map(), pairKills: new Map() };
     rooms.set(key, room);
   }
   return room;
@@ -172,7 +173,40 @@ function broadcast(room, obj) {
   }
 }
 
-// ---- Hitscan ----
+function scoreboard(room) {
+  return [...room.players.values()].map(p => ({
+    id: p.id,
+    name: p.name,
+    kills: p.kills || 0,
+    deaths: p.deaths || 0
+  }));
+}
+
+function bumpPairKill(room, killerId, victimId) {
+  const k = `${killerId}->${victimId}`;
+  room.pairKills.set(k, (room.pairKills.get(k) || 0) + 1);
+  return room.pairKills.get(k);
+}
+
+function pairKillsList(room) {
+  const out = [];
+  for (const [k, count] of room.pairKills.entries()) {
+    const [killerId, victimId] = k.split("->");
+    const killer = room.players.get(killerId);
+    const victim = room.players.get(victimId);
+    out.push({
+      killerId,
+      killerName: killer?.name || "player",
+      victimId,
+      victimName: victim?.name || "player",
+      count
+    });
+  }
+  out.sort((a, b) => b.count - a.count);
+  return out;
+}
+
+// ---- Hitscan (server träffar baserat på yaw i XZ) ----
 function yawToDirXZ(yaw) {
   const dx = -Math.sin(yaw);
   const dz = -Math.cos(yaw);
@@ -218,6 +252,7 @@ wss.on("connection", (ws) => {
       const room = getOrCreateRoom(msg.room || "lobby");
       const id = rid();
       const sp = spawnPoint(room);
+
       player = {
         id, ws,
         room: room.name,
@@ -225,6 +260,9 @@ wss.on("connection", (ws) => {
         x: sp.x, z: sp.z,
         yaw: 0, pitch: 0,
         hp: MAX_HP,
+        kills: 0,
+        deaths: 0,
+
         lastHeardMs: nowMs(),
         vx: 0, vz: 0,
         inX: 0, inZ: 0,
@@ -232,6 +270,7 @@ wss.on("connection", (ws) => {
         shootYaw: 0,
         shootPitch: 0
       };
+
       room.players.set(id, player);
 
       ws.send(JSON.stringify({
@@ -240,12 +279,16 @@ wss.on("connection", (ws) => {
         players: [...room.players.values()].map(p => ({
           id: p.id, name: p.name, x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp
         })),
+        scoreboard: scoreboard(room),
+        pairKills: pairKillsList(room).slice(0, 12),
         ts: nowMs()
       }));
 
       broadcast(room, {
         t: "player_join",
         p: { id, name: player.name, x: player.x, z: player.z, yaw: 0, pitch: 0, hp: player.hp },
+        scoreboard: scoreboard(room),
+        pairKills: pairKillsList(room).slice(0, 12),
         ts: nowMs()
       });
       return;
@@ -265,14 +308,21 @@ wss.on("connection", (ws) => {
     if (msg.t === "shoot") {
       player.wantShoot  = 1;
       player.shootYaw   = Number(msg.yaw)   || player.yaw;
-      player.shootPitch = Number(msg.pitch) || player.pitch;
+      player.shootPitch = clamp(Number(msg.pitch) || player.pitch, -1.4, 1.4);
       return;
     }
 
     if (msg.t === "name") {
       player.name = String(msg.name || player.name).slice(0, 16);
       const room = getOrCreateRoom(player.room);
-      broadcast(room, { t: "player_name", id: player.id, name: player.name, ts: nowMs() });
+      broadcast(room, {
+        t: "player_name",
+        id: player.id,
+        name: player.name,
+        scoreboard: scoreboard(room),
+        pairKills: pairKillsList(room).slice(0, 12),
+        ts: nowMs()
+      });
       return;
     }
   });
@@ -281,8 +331,16 @@ wss.on("connection", (ws) => {
     if (!player) return;
     const room = rooms.get(player.room);
     if (!room) return;
+
     room.players.delete(player.id);
-    broadcast(room, { t: "player_leave", id: player.id, ts: nowMs() });
+    broadcast(room, {
+      t: "player_leave",
+      id: player.id,
+      scoreboard: scoreboard(room),
+      pairKills: pairKillsList(room).slice(0, 12),
+      ts: nowMs()
+    });
+
     if (room.players.size === 0) rooms.delete(room.name);
   });
 });
@@ -290,12 +348,19 @@ wss.on("connection", (ws) => {
 // ---- Game tick ----
 setInterval(() => {
   for (const room of rooms.values()) {
+
     // Movement
     for (const p of room.players.values()) {
       if (nowMs() - p.lastHeardMs > 30000) {
         try { p.ws.close(); } catch {}
         room.players.delete(p.id);
-        broadcast(room, { t: "player_leave", id: p.id, ts: nowMs() });
+        broadcast(room, {
+          t: "player_leave",
+          id: p.id,
+          scoreboard: scoreboard(room),
+          pairKills: pairKillsList(room).slice(0, 12),
+          ts: nowMs()
+        });
         continue;
       }
 
@@ -324,6 +389,7 @@ setInterval(() => {
       shooter.wantShoot = 0;
       if (shooter.hp <= 0) continue;
 
+      // Server-hit: fortfarande yaw i XZ (som du hade). Pitch används för visuals i klienten.
       const { dx, dz } = yawToDirXZ(shooter.shootYaw);
       let bestId = null, bestT = Infinity;
 
@@ -335,32 +401,85 @@ setInterval(() => {
 
       if (bestId) {
         const victim = room.players.get(bestId);
-        if (victim) {
+        if (victim && victim.hp > 0) {
           victim.hp -= DAMAGE;
+
+          let killed = false;
           if (victim.hp <= 0) {
             victim.hp = 0;
+            killed = true;
+
+            shooter.kills = (shooter.kills || 0) + 1;
+            victim.deaths = (victim.deaths || 0) + 1;
+
+            const pairCount = bumpPairKill(room, shooter.id, victim.id);
+
+            broadcast(room, {
+              t: "kill",
+              killerId: shooter.id,
+              killerName: shooter.name,
+              victimId: victim.id,
+              victimName: victim.name,
+              pairCount,
+              scoreboard: scoreboard(room),
+              pairKills: pairKillsList(room).slice(0, 12),
+              ts: nowMs()
+            });
+
             setTimeout(() => {
               if (!room.players.has(victim.id)) return;
               const sp = spawnPoint(room);
               victim.x = sp.x; victim.z = sp.z;
               victim.vx = 0; victim.vz = 0;
               victim.hp = MAX_HP;
-              broadcast(room, { t: "respawn", id: victim.id, x: victim.x, z: victim.z, hp: victim.hp, ts: nowMs() });
+              broadcast(room, {
+                t: "respawn",
+                id: victim.id,
+                x: victim.x,
+                z: victim.z,
+                hp: victim.hp,
+                scoreboard: scoreboard(room),
+                pairKills: pairKillsList(room).slice(0, 12),
+                ts: nowMs()
+              });
             }, RESPAWN_MS);
           }
-          broadcast(room, { t: "hit", from: shooter.id, to: victim.id, hp: victim.hp, ts: nowMs() });
+
+          broadcast(room, {
+            t: "hit",
+            from: shooter.id,
+            to: victim.id,
+            hp: victim.hp,
+            killed,
+            scoreboard: scoreboard(room),
+            pairKills: pairKillsList(room).slice(0, 12),
+            ts: nowMs()
+          });
         }
       }
 
-      broadcast(room, { t: "shot", id: shooter.id, yaw: shooter.shootYaw, ts: nowMs() });
+      // ✅ Skicka med pitch så klienten kan rita tracer i 3D
+      broadcast(room, {
+        t: "shot",
+        id: shooter.id,
+        yaw: shooter.shootYaw,
+        pitch: shooter.shootPitch,
+        ts: nowMs()
+      });
     }
 
-    // State snapshot
+    // State snapshot (inkl scoreboard)
     broadcast(room, {
-      t: "state", ts: nowMs(),
+      t: "state",
+      ts: nowMs(),
       players: [...room.players.values()].map(p => ({
-        id: p.id, name: p.name, x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp
-      }))
+        id: p.id, name: p.name,
+        x: p.x, z: p.z,
+        yaw: p.yaw, pitch: p.pitch,
+        hp: p.hp
+      })),
+      scoreboard: scoreboard(room),
+      pairKills: pairKillsList(room).slice(0, 12),
     });
   }
 }, 1000 / TICK_HZ);
