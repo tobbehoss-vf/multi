@@ -1060,14 +1060,14 @@
     // SMG burst control
     let smgBurstActive = false;
     let smgBurstCooldown = 0;
-
+    let smgTriggerHeld = false;  
     function startSmgBurst() {
       if (smgBurstActive || smgBurstCooldown > 0) return;
       if (!controls.isLocked) return;
 
-      // Always 2s burst, 8 shots (0.25s interval)
-      const shots = 8;
-      const intervalMs = 250;
+      // Always 2s burst, 3 shots (0.1s interval)
+      const shots = 3;
+      const intervalMs = 100;
 
       smgBurstActive = true;
       smgBurstCooldown = 2.05; // small margin
@@ -1081,7 +1081,14 @@
           const ok = doSingleShot();
           if (ok) playSound("smg");
 
-          if (i === shots - 1) smgBurstActive = false;
+          if (i === shots - 1) {
+  smgBurstActive = false;
+
+  // AUTOREPEAT
+  if (smgTriggerHeld) {
+    startSmgBurst();
+  }
+}
         }, i * intervalMs);
       }
     }
@@ -1099,9 +1106,15 @@
         return;
       }
 
-      if (currentWeapon === "smg") {
-        startSmgBurst();
-      }
+     if (currentWeapon === "smg") {
+  smgTriggerHeld = true;
+  startSmgBurst();
+}
+      addEventListener("mouseup", e => {
+  if (e.button === 0) {
+    smgTriggerHeld = false;
+  }
+});
     });
 
     addEventListener("keydown", e => {
