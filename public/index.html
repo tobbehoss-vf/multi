@@ -71,6 +71,45 @@
       padding: 8px 14px; border-radius: 12px; font: 13px system-ui;
       opacity: 0; transition: opacity .2s ease; pointer-events:none; z-index: 6;
     }
+
+    /* Killfeed / Scoreboard / Pairkills */
+    #killfeed{
+      position: fixed; left: 12px; top: 12px; z-index: 6;
+      display:flex; flex-direction:column; gap:6px;
+      font: 12px system-ui; color:#fff;
+      pointer-events:none;
+    }
+    #killfeed .line{
+      background: rgba(0,0,0,.45);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 6px 10px; border-radius: 10px;
+      max-width: 320px;
+    }
+
+    #scoreboard{
+      position: fixed; right: 12px; top: 12px; z-index: 6;
+      min-width: 220px;
+      background: rgba(0,0,0,.45);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 10px 12px; border-radius: 12px;
+      font: 12px system-ui; color:#fff;
+      pointer-events:none;
+    }
+    #scoreboard .hdr{ font-weight: 700; opacity: .9; margin-bottom: 8px; }
+    #scoreboard .row{ display:flex; justify-content:space-between; gap:10px; padding: 2px 0; }
+    #scoreboard .me{ color: #ffe27a; }
+
+    #pairkills{
+      position: fixed; right: 12px; top: 160px; z-index: 6;
+      min-width: 220px;
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 10px 12px; border-radius: 12px;
+      font: 12px system-ui; color:#fff;
+      pointer-events:none;
+    }
+    #pairkills .hdr{ font-weight: 700; opacity: .9; margin-bottom: 8px; }
+    #pairkills .row{ display:flex; justify-content:space-between; gap:10px; padding: 2px 0; opacity:.92; }
   </style>
   <script type="importmap">
     { "imports": {
@@ -100,6 +139,10 @@
   <div id="crosshair"></div>
   <div id="toast"></div>
 
+  <div id="killfeed"></div>
+  <div id="scoreboard"></div>
+  <div id="pairkills"></div>
+
   <div id="hud-bar">
     <div class="hud-item"><div class="hud-label">HÄLSA</div><div class="hud-value" id="hud-hp">100</div></div>
     <div id="hud-face">😐</div>
@@ -121,6 +164,7 @@
 
     async function loadSound(url) {
       const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
       const ab  = await res.arrayBuffer();
       return audioCtx.decodeAudioData(ab);
     }
@@ -137,7 +181,6 @@
       src.start(audioCtx.currentTime + delay);
     }
 
-    // Ladda parallellt – knappen aktiveras när alla tre är klara
     Promise.all([
       loadSound('/Shotgun2.mp3'),  // skottsmäll
       loadSound('/Shotgun3.mp3'),  // hylsa kastas ut
@@ -148,17 +191,17 @@
       sounds.reload = reload;
       joinBtn.disabled    = false;
       joinBtn.textContent = "Join";
-    }).catch(() => {
-      // Filer saknas (lokal test utan server) – aktivera ändå
+    }).catch((e) => {
+      console.warn("Sound load failed:", e);
       joinBtn.disabled    = false;
       joinBtn.textContent = "Join (inget ljud)";
     });
 
     function playSound(type) {
       if (type === 'shoot') {
-        playBuffer(sounds.shoot,  0.00, 1.0);  // skott direkt
-        playBuffer(sounds.shell,  0.20, 0.6);  // hylsa 200ms senare
-        playBuffer(sounds.reload, 0.55, 0.5);  // laddning 550ms senare
+        playBuffer(sounds.shoot,  0.00, 1.0);
+        playBuffer(sounds.shell,  0.20, 0.6);
+        playBuffer(sounds.reload, 0.55, 0.5);
       }
       if (type === 'reload') {
         playBuffer(sounds.reload, 0.00, 0.9);
@@ -210,6 +253,42 @@
       if (["INPUT","BUTTON","LABEL"].includes(e.target.tagName)) return;
       if (connected) controls.lock();
     });
+
+    // Killfeed / scoreboard UI
+    const killfeedEl = document.getElementById("killfeed");
+    const scoreboardEl = document.getElementById("scoreboard");
+    const pairkillsEl = document.getElementById("pairkills");
+
+    const killfeed = [];
+    function addKillLine(text) {
+      killfeed.unshift({ text, t: performance.now() });
+      killfeed.splice(6);
+      renderKillfeed();
+    }
+    function renderKillfeed() {
+      killfeedEl.innerHTML = killfeed.map(k => `<div class="line">${escapeHtml(k.text)}</div>`).join("");
+    }
+    function renderScoreboard(list) {
+      if (!Array.isArray(list)) return;
+      const rows = [...list].sort((a,b)=> (b.kills - a.kills) || (a.deaths - b.deaths));
+      scoreboardEl.innerHTML =
+        `<div class="hdr">SCORE (K/D)</div>` +
+        rows.map(p => {
+          const me = (p.id === player.id) ? "me" : "";
+          return `<div class="row ${me}"><span>${escapeHtml(p.name||"player")}</span><span>${p.kills||0}/${p.deaths||0}</span></div>`;
+        }).join("");
+    }
+    function renderPairKills(list) {
+      if (!Array.isArray(list)) return;
+      pairkillsEl.innerHTML =
+        `<div class="hdr">VEM DÖDADE VEM</div>` +
+        list.slice(0, 10).map(r =>
+          `<div class="row"><span>${escapeHtml(r.killerName)} → ${escapeHtml(r.victimName)}</span><span>${r.count}</span></div>`
+        ).join("");
+    }
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
 
     // =========================
     // 3D Vapen (child of camera)
@@ -343,7 +422,7 @@
     }
 
     // =========================
-    // Lokal hit-detection
+    // Lokal hit-detection (endast toast, servern gör HP/kill)
     // =========================
     const localRaycaster = new THREE.Raycaster();
     function localShootRaycast() {
@@ -448,6 +527,27 @@
       add(new THREE.BoxGeometry(0.22,0.30,0.22), pSkin,  -0.15, 0.02,  0);
       add(new THREE.BoxGeometry(0.24,0.12,0.34), pShoe,   0.15,-0.16,  0.05);
       add(new THREE.BoxGeometry(0.24,0.12,0.34), pShoe,  -0.15,-0.16,  0.05);
+
+      // --- Enemy weapon (synligt vapen på motståndare) ---
+      const gun = new THREE.Group();
+      const gunMat = new THREE.MeshLambertMaterial({ color: 0x15151a });
+      const woodMat = new THREE.MeshLambertMaterial({ color: 0x5a341a });
+
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.55), gunMat);
+      barrel.position.set(0, 0, -0.28);
+      gun.add(barrel);
+
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.20), woodMat);
+      stock.position.set(0, -0.01, 0.12);
+      gun.add(stock);
+
+      gun.position.set(0.50, 1.05, -0.05);
+      gun.rotation.y = Math.PI;
+      gun.rotation.x = -0.1;
+
+      g.add(gun);
+      g.userData.gun = gun;
+
       return g;
     }
 
@@ -470,9 +570,12 @@
         map: makeNameLabel(name), transparent: true, depthTest: false
       }));
       label.scale.set(2.2, 0.55, 1); scene.add(label);
+
+      // Muzzle flash light for enemy
       const enemyFlash = new THREE.PointLight(0xff8800, 0, 5);
       enemyFlash.position.set(0.42, 1.10, -0.5);
       humanoid.add(enemyFlash);
+
       const o = {
         humanoid, label,
         flashLight: enemyFlash, flashLife: 0,
@@ -623,39 +726,85 @@
       ws.onmessage = ev => {
         let msg; try { msg = JSON.parse(ev.data); } catch { return; }
 
+        // Scoreboard/pairkills kan komma i många meddelanden
+        if (msg.scoreboard) renderScoreboard(msg.scoreboard);
+        if (msg.pairKills) renderPairKills(msg.pairKills);
+
         if (msg.t === "welcome") {
           player.id = msg.id; player.hp = msg.you.hp;
           player.pos.x = msg.you.x; player.pos.z = msg.you.z;
           controls.getObject().position.set(player.pos.x, player.eyeY, player.pos.z);
+
           for (const p of msg.players) {
             if (p.id === player.id) continue;
             const o = ensureOther(p.id, p.name);
             o.last = {...p}; o.render.x = p.x; o.render.z = p.z;
           }
+
           showToast(`Joined: ${msg.room}`);
           ui.style.display = "none";
           setTimeout(() => controls.lock(), 50);
           return;
         }
+
         if (msg.t === "player_join") {
           if (msg.p.id === player.id) return;
           const o = ensureOther(msg.p.id, msg.p.name);
           o.last = {...msg.p}; o.render.x = msg.p.x; o.render.z = msg.p.z;
           showToast(`${msg.p.name} joined`); return;
         }
+
         if (msg.t === "player_leave") { removeOther(msg.id); return; }
+
         if (msg.t === "player_name") {
           const o = ensureOther(msg.id, msg.name);
           o.label.material.map = makeNameLabel(msg.name);
           o.label.material.needsUpdate = true; o.last.name = msg.name; return;
         }
+
+        // ✅ Motståndares skott: tracer + muzzle flash (yaw + pitch)
+        if (msg.t === "shot") {
+          if (msg.id === player.id) return;
+          const o = others.get(msg.id);
+          if (!o) return;
+
+          o.flashLife = 1.0;
+          o.flashLight.intensity = 5;
+
+          const yaw = Number(msg.yaw) || o.last.yaw || 0;
+          const pitch = Number(msg.pitch) || o.last.pitch || 0;
+
+          // Samma riktningstänk som i din klient (getWorldDirection): framåt är -Z.
+          const dir = new THREE.Vector3(
+            -Math.sin(yaw) * Math.cos(pitch),
+             Math.sin(pitch),
+            -Math.cos(yaw) * Math.cos(pitch)
+          ).normalize();
+
+          // Startpunkt: ungefär vid bröst, lite fram
+          const from = new THREE.Vector3(o.render.x, 1.25, o.render.z).addScaledVector(dir, 0.9);
+          spawnTracer(from, dir);
+          return;
+        }
+
         if (msg.t === "hit") {
-          if (msg.to === player.id) { player.hp = msg.hp; triggerHitFlash(); showToast("TRÄFFAD!"); }
+          if (msg.to === player.id) {
+            player.hp = msg.hp;
+            triggerHitFlash();
+            showToast("TRÄFFAD!");
+          }
           if (msg.from === player.id) showToast("TRÄFF!");
           const shooter = others.get(msg.from);
           if (shooter) { shooter.flashLife = 1.0; shooter.flashLight.intensity = 5; }
-          const o = others.get(msg.to); if (o) o.last.hp = msg.hp; return;
+          const o = others.get(msg.to); if (o) o.last.hp = msg.hp;
+          return;
         }
+
+        if (msg.t === "kill") {
+          addKillLine(`${msg.killerName} dödade ${msg.victimName} (${msg.pairCount}x)`);
+          return;
+        }
+
         if (msg.t === "respawn") {
           if (msg.id === player.id) {
             player.hp = msg.hp; player.pos.x = msg.x; player.pos.z = msg.z;
@@ -667,11 +816,14 @@
           }
           return;
         }
+
         if (msg.t === "state") {
           for (const p of msg.players) {
             if (p.id === player.id) { player.hp = p.hp; continue; }
-            const o = ensureOther(p.id, p.name); o.last = {...p};
+            const o = ensureOther(p.id, p.name);
+            o.last = {...p};
           }
+          return;
         }
       };
     }
@@ -720,7 +872,7 @@
       if (player.ammo <= 0) { showToast("TOMT! (R = ladda om)"); return; }
 
       player.ammo--;
-      shootCooldown = 0.7; // matchar laddljudets längd ~550ms + marginal
+      shootCooldown = 0.7;
       playSound('shoot');
       triggerMuzzleFlash();
 
@@ -752,8 +904,10 @@
         o.humanoid.position.set(o.render.x, 0, o.render.z);
         if (o.last.yaw !== undefined) o.humanoid.rotation.y = o.last.yaw + Math.PI;
         o.label.position.set(o.render.x, 2.4, o.render.z);
+
         const alive = (o.last.hp ?? 100) > 0;
         o.humanoid.traverse(m => { if (m.isMesh) m.material = alive ? m.userData.mat : pDead; });
+
         if (o.flashLife > 0) {
           o.flashLife = Math.max(0, o.flashLife - dt*18);
           o.flashLight.intensity = o.flashLife * 5;
