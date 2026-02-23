@@ -3,650 +3,1203 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Browser Shooter (Single-file)</title>
+  <title>Doom-ish PvP (Render: HTML + WS)</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    #hud { position: fixed; left: 0; top: 0; right: 0; padding: 10px 12px; color: #fff; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
-    #hud .row { display: flex; gap: 14px; align-items: center; justify-content: space-between; }
-    #hud .left { display: flex; gap: 14px; align-items: center; }
-    #hud .badge { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15); padding: 6px 10px; border-radius: 10px; }
-    #overlay {
-      position: fixed; inset: 0; display: grid; place-items: center;
-      background: radial-gradient(ellipse at center, rgba(0,0,0,.75), rgba(0,0,0,.92));
-      color: #fff; z-index: 10;
+    html,body { margin:0; height:100%; overflow:hidden; background:#000; }
+    canvas { display:block; width:100vw; height:100vh; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+    #ui {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      font: 16px system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#fff;
+      background: rgba(0,0,0,.55);
+      user-select:none;
+      z-index: 10;
     }
-    #panel {
-      width: min(560px, calc(100vw - 32px));
-      background: rgba(20,20,20,.78);
+    #ui .box {
+      max-width: 780px;
+      padding: 18px 20px;
       border: 1px solid rgba(255,255,255,.18);
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.55);
-      padding: 18px;
-    }
-    #panel h1 { margin: 0 0 6px; font-size: 18px; }
-    #panel p { margin: 0 0 14px; color: rgba(255,255,255,.85); line-height: 1.35; font-size: 13px; }
-    #panel .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    #panel label { font-size: 12px; color: rgba(255,255,255,.85); display: block; margin-bottom: 6px; }
-    #panel input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,.15);
       background: rgba(0,0,0,.35);
-      color: #fff;
-      outline: none;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.45);
     }
-    #panel .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-    #panel button {
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.08);
-      color: #fff;
-      cursor: pointer;
-      font-weight: 600;
+    #ui h1 { margin:0 0 10px; font-size: 20px; }
+    #ui p { margin:8px 0; opacity:.92; line-height:1.5; }
+    #ui .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    #ui label { opacity:.9; }
+    #ui input {
+      width: 220px; padding: 9px 10px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.35); color:#fff;
+      outline:none;
     }
-    #panel button.primary { background: rgba(255,255,255,.16); }
-    #panel button:active { transform: translateY(1px); }
-    #panel .small { font-size: 12px; opacity: .85; margin-top: 10px; }
-    canvas { display: block; width: 100vw; height: 100vh; }
+    #ui button {
+      padding: 9px 12px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.14); color:#fff;
+      cursor:pointer;
+    }
+    #ui button:hover { background: rgba(255,255,255,.18); }
+
+    #weapon { display: none; }
     #crosshair {
       position: fixed; left: 50%; top: 50%;
-      width: 18px; height: 18px; transform: translate(-50%,-50%);
-      pointer-events: none; z-index: 2;
-      filter: drop-shadow(0 2px 2px rgba(0,0,0,.7));
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 5;
+      width: 0; height: 0;
     }
-    #crosshair:before, #crosshair:after {
-      content:""; position:absolute; left:50%; top:50%; background: rgba(255,255,255,.9);
-      transform: translate(-50%,-50%);
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.92);
     }
-    #crosshair:before { width: 16px; height: 2px; border-radius: 2px; }
-    #crosshair:after { width: 2px; height: 16px; border-radius: 2px; }
+    #crosshair::before {
+      width: 16px; height: 2px;
+      left: -8px; top: -1px;
+    }
+    #crosshair::after {
+      width: 2px; height: 16px;
+      left: -1px; top: -8px;
+    }
+
+    /* Hit flash overlay */
+    #hitflash {
+      position: fixed; inset:0;
+      pointer-events:none;
+      z-index:7;
+      background: rgba(220,0,0,0);
+      transition: background 0.08s;
+    }
+
+    /* Bottom Doom-style HUD bar */
+    #hud-bar {
+      position: fixed; bottom:0; left:0; right:0;
+      height: 56px;
+      background: #1a0000;
+      border-top: 3px solid #550000;
+      display: flex; align-items: center;
+      padding: 0 24px;
+      gap: 32px;
+      z-index: 5;
+      pointer-events: none;
+      font: bold 28px ui-monospace, monospace;
+      color: #ff4400;
+      text-shadow: 0 0 8px #ff2200;
+    }
+    .hud-item { display:flex; flex-direction:column; align-items:center; }
+    .hud-label { font-size:9px; letter-spacing:2px; color:#ff6600; opacity:0.7; font-weight:normal; margin-bottom:1px; }
+    .hud-value { line-height:1; }
+    #hud-face {
+      width:44px; height:44px; background:#cc2200;
+      border:2px solid #881100; border-radius:2px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:22px;
+    }
+    #hud-room {
+      font-size:11px; letter-spacing:2px; color:#ff8800;
+      opacity:0.6; margin-left:auto; font-weight:normal;
+    }
+    #toast {
+      position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+      color:#fff; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.15);
+      padding: 8px 10px; border-radius: 12px; font: 13px system-ui;
+      opacity: 0; transition: opacity .2s ease;
+      pointer-events:none;
+      z-index: 6;
+    }
   </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
+
 <body>
-  <div id="overlay">
-    <div id="panel">
-      <h1>Join</h1>
-      <p>
-        Klicka <b>Join</b> för att starta ljudet och låsa musen. (WebAudio kräver user-gesture.)
-        <br/>Kontroller: <b>WASD</b>, <b>mus</b> för att sikta, <b>vänsterklick</b> för shotgun.
+  <div id="ui">
+    <div class="box">
+      <h1>Doom-ish PvP</h1>
+      <p class="row">
+        <label>Namn:</label>
+        <input id="name" maxlength="16" placeholder="Ditt namn" />
+        <label>Rum:</label>
+        <input id="room" maxlength="16" value="lobby" />
+        <button id="join">Join</button>
       </p>
-      <div class="grid">
-        <div>
-          <label for="name">Namn</label>
-          <input id="name" value="Player" maxlength="16" />
-        </div>
-        <div>
-          <label for="ws">WebSocket URL (valfritt)</label>
-          <input id="ws" placeholder="(auto)" />
-        </div>
-      </div>
-      <div class="actions">
-        <button id="joinBtn" class="primary">Join</button>
-        <button id="closeBtn">Close</button>
-      </div>
-      <div class="small" id="status">Status: inte startad</div>
+      <p><b>W/S/A/D</b> = rör dig • <b>Mus</b> = sikta • <b>Klick</b> = skjut • <b>Space</b> = hoppa • <b>C/Ctrl</b> = ducka • <b>R</b> = ladda om • <b>ESC</b> = meny</p>
+      <p style="opacity:.78">Doom-känsla: hög fart + “slide”. (Inga hopp.)</p>
+      <p id="status" style="opacity:.9"></p>
     </div>
   </div>
 
-  <div id="hud">
-    <div class="row">
-      <div class="left">
-        <div class="badge" id="hp">HP: 100</div>
-        <div class="badge" id="ammo">SHOTGUN</div>
-        <div class="badge" id="net">WS: off</div>
-      </div>
-      <div class="badge" id="fps">0 fps</div>
-    </div>
-  </div>
-
+  <div id="hitflash"></div>
+  <div id="hud"></div>
   <div id="crosshair"></div>
-  <canvas id="c"></canvas>
+  <div id="toast"></div>
+  <img id="weapon" alt="weapon" />
 
-<script>
-(() => {
-  // ------------------------------------------------------------
-  // Canvas / render setup
-  // ------------------------------------------------------------
-  const canvas = document.getElementById('c');
-  const ctx2d = canvas.getContext('2d', { alpha: false });
+  <!-- Doom-style HUD bar -->
+  <div id="hud-bar">
+    <div class="hud-item">
+      <div class="hud-label">HÄLSA</div>
+      <div class="hud-value" id="hud-hp">100</div>
+    </div>
+    <div id="hud-face">😐</div>
+    <div class="hud-item">
+      <div class="hud-label">AMMO</div>
+      <div class="hud-value" id="hud-ammo">50</div>
+    </div>
+    <div class="hud-item" style="font-size:16px">
+      <div class="hud-label">SPELARE</div>
+      <div class="hud-value" id="hud-players">–</div>
+    </div>
+    <div id="hud-room">OFFLINE</div>
+  </div>
 
-  function resize() {
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    canvas.width = Math.floor(innerWidth * dpr);
-    canvas.height = Math.floor(innerHeight * dpr);
-    ctx2d.imageSmoothingEnabled = false;
-  }
-  addEventListener('resize', resize);
-  resize();
+  <script type="module">
+    import * as THREE from "three";
+    import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
-  // ------------------------------------------------------------
-  // Simple raycaster world (grid)
-  // ------------------------------------------------------------
-  const MAP_W = 16, MAP_H = 16;
-  const map = [
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,1,0,1,1,1,1,0,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-    1,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-  ];
+    // =========================
+    // Ljud – Web Audio API
+    // =========================
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  function cell(x, y) {
-    const ix = x | 0, iy = y | 0;
-    if (ix < 0 || iy < 0 || ix >= MAP_W || iy >= MAP_H) return 1;
-    return map[iy * MAP_W + ix] | 0;
-  }
+    function playSound(type){
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
 
-  // ------------------------------------------------------------
-  // Player / Entities
-  // ------------------------------------------------------------
-  const player = { x: 3.5, y: 3.5, a: 0, hp: 100, alive: true, respawnT: 0 };
-  const ENT_RADIUS = 0.18;
-  const bots = [];
-  const MAX_BOTS = 6;
-
-  function dist2(ax, ay, bx, by) {
-    const dx = ax - bx, dy = ay - by;
-    return dx*dx + dy*dy;
-  }
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  function spawnBot() {
-    for (let tries = 0; tries < 200; tries++) {
-      const x = 1.5 + Math.random() * (MAP_W - 3);
-      const y = 1.5 + Math.random() * (MAP_H - 3);
-      if (cell(x, y) === 0 && dist2(x, y, player.x, player.y) > 9) {
-        bots.push({ x, y, hp: 100, alive: true, respawnT: 0 });
-        return;
-      }
-    }
-  }
-  for (let i = 0; i < MAX_BOTS; i++) spawnBot();
-
-  // ------------------------------------------------------------
-  // Input
-  // ------------------------------------------------------------
-  const keys = new Set();
-  addEventListener('keydown', (e) => { keys.add(e.code); if (e.code === 'Escape') unlockPointer(); });
-  addEventListener('keyup', (e) => keys.delete(e.code));
-
-  let pointerLocked = false;
-  function lockPointer() { canvas.requestPointerLock?.(); }
-  function unlockPointer() { document.exitPointerLock?.(); }
-  document.addEventListener('pointerlockchange', () => {
-    pointerLocked = (document.pointerLockElement === canvas);
-  });
-
-  addEventListener('mousemove', (e) => {
-    if (!pointerLocked) return;
-    player.a += (e.movementX || 0) * 0.0022;
-  });
-
-  // ------------------------------------------------------------
-  // Audio (WebAudio)
-  // ------------------------------------------------------------
-  let audioCtx = null;
-  let master = null;
-
-  function ensureAudio() {
-    if (audioCtx) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AC();
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
-    master.connect(audioCtx.destination);
-  }
-
-  function playBuffer(buf, gain = 1) {
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-
-    // Lätt kedja (du kan ta bort comp om du vill – men den hjälper “punch”)
-    const hp = audioCtx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 90;
-
-    const lp = audioCtx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 8500;
-
-    const comp = audioCtx.createDynamicsCompressor();
-    comp.threshold.value = -18;
-    comp.knee.value = 18;
-    comp.ratio.value = 6;
-    comp.attack.value = 0.003;
-    comp.release.value = 0.08;
-
-    const g = audioCtx.createGain();
-    g.gain.value = gain;
-
-    src.connect(hp);
-    hp.connect(lp);
-    lp.connect(comp);
-    comp.connect(g);
-    g.connect(master);
-
-    src.start(audioCtx.currentTime + 0.001);
-  }
-
-  function sfx(type) {
-    ensureAudio();
-
-    if (type === 'shoot') {
-      // ---- SHOTGUN (enda ändringen du bad om): crack + blast + thump + softclip ----
-      const sr = audioCtx.sampleRate;
-      const dur = 0.22;
-      const buf = audioCtx.createBuffer(1, Math.floor(sr * dur), sr);
-      const d = buf.getChannelData(0);
-
-      const drive = 3.2;
-      const crackHz = 2600;
-      const blastDecay = 70;
-      const bodyDecay  = 22;
-      const crackDecay = 1400;
-
-      let lpState = 0;
-      const lpAlpha = 0.10;
-
-      let phase = 0;
-
-      for (let i = 0; i < d.length; i++) {
-        const t = i / sr;
-
-        const envBlast = Math.exp(-t * blastDecay);
-        const envBody  = Math.exp(-t * bodyDecay);
-        const envCrack = Math.exp(-t * crackDecay);
-
-        // Crack
-        const crack =
-          (Math.sin(2 * Math.PI * crackHz * t) * 0.65 + (Math.random() * 2 - 1) * 0.35) * envCrack;
-
-        // Blast
-        const n = (Math.random() * 2 - 1);
-        lpState = lpState + lpAlpha * (n - lpState);
-        const blast = (n * 0.55 + lpState * 0.85) * envBlast;
-
-        // Thump with pitch drop (phase accumulation)
-        const f = 70 + (130 - 70) * Math.exp(-t * 45);
-        phase += (2 * Math.PI * f) / sr;
-        const body = Math.sin(phase) * envBody;
-
-        let s = crack * 0.95 + blast * 1.10 + body * 0.80;
-        s = Math.tanh(s * drive);
-        d[i] = s * 0.9;
+      if (type === 'shoot') {
+        // Skottljud: kort brak + brus
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.18, audioCtx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          const t = i / audioCtx.sampleRate;
+          const env = Math.exp(-t * 28);
+          d[i] = (Math.random() * 2 - 1) * env * 0.9
+                + Math.sin(2 * Math.PI * 120 * t) * env * 0.4
+                + Math.sin(2 * Math.PI * 60 * t) * env * 0.3;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        const dist = audioCtx.createDynamicsCompressor();
+        src.connect(dist); dist.connect(audioCtx.destination);
+        src.start(now);
       }
 
-      playBuffer(buf, 0.95);
-      return;
-    }
-
-    if (type === 'hit') {
-      const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.08), audioCtx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) {
-        const t = i / audioCtx.sampleRate;
-        const env = Math.exp(-t * 55);
-        d[i] = (Math.sin(2 * Math.PI * (180 + 300*t) * t) * 0.6 + (Math.random()*2-1)*0.2) * env;
+      if (type === 'reload') {
+        // Laddljud: click-klack mekaniskt
+        [0, 0.12, 0.22, 0.42].forEach((delay, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.value = i % 2 === 0 ? 320 : 280;
+          gain.gain.setValueAtTime(0.18, now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.08);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(now + delay); osc.stop(now + delay + 0.1);
+        });
+        // Fjäder-whoosh
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          const t = i / audioCtx.sampleRate;
+          d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 12) * 0.12;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(now + 0.08);
       }
-      playBuffer(buf, 0.5);
-      return;
-    }
 
-    if (type === 'dead') {
-      const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.25), audioCtx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) {
-        const t = i / audioCtx.sampleRate;
-        const env = Math.exp(-t * 8);
-        d[i] = (Math.sin(2 * Math.PI * (120 - 70*t) * t) * 0.7 + (Math.random()*2-1)*0.15) * env;
+      if (type === 'jump') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.16);
       }
-      playBuffer(buf, 0.6);
+
+      if (type === 'land') {
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.03)) * 0.3;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(now);
+      }
     }
-  }
 
-  // ------------------------------------------------------------
-  // WebSocket (optional)
-  // ------------------------------------------------------------
-  function defaultWsUrl() {
-    const proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
-    return proto + location.host;
-  }
-  let ws = null;
+    // =========================
+    // Renderer (full resolution)
+    // =========================
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:"high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.autoClear = true;
+    document.body.appendChild(renderer.domElement);
 
-  function connectWs(url) {
-    try {
-      ws = new WebSocket(url);
-      ws.onopen = () => setNet('on');
-      ws.onclose = () => setNet('off');
-      ws.onerror = () => setNet('off');
-      ws.onmessage = () => {};
-      setNet('…');
-    } catch (_) {
-      setNet('off');
+    const scene = new THREE.Scene();
+    // Ljusare, mjuk dimma
+    scene.fog = new THREE.Fog(0x7ac8ee, 30, 160);
+    scene.background = new THREE.CubeTextureLoader().load([
+      '/sky_px.png', '/sky_nx.png',
+      '/sky_py.png', '/sky_ny.png',
+      '/sky_pz.png', '/sky_nz.png'
+    ]);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 200);
+
+    // Ljussättning (ljusare än tidigare)
+    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    const key = new THREE.DirectionalLight(0xffffff, 2.5);
+    key.position.set(6, 12, 4);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 1.2);
+    fill.position.set(-6, 8, -4);
+    scene.add(fill);
+
+    const controls = new PointerLockControls(camera, document.body);
+    scene.add(controls.getObject());
+
+    // =========================
+    // UI
+    // =========================
+    const ui = document.getElementById("ui");
+    const statusEl = document.getElementById("status");
+    const hud = document.getElementById("hud");
+    const toast = document.getElementById("toast");
+    const weaponImg = document.getElementById("weapon");
+
+    function showToast(text){
+      toast.textContent = text;
+      toast.style.opacity = "1";
+      setTimeout(()=> toast.style.opacity = "0", 900);
     }
-  }
 
-  function setNet(v) {
-    document.getElementById('net').textContent = 'WS: ' + v;
-  }
+    controls.addEventListener("lock", () => { ui.style.display = "none"; });
+    controls.addEventListener("unlock", () => { ui.style.display = "flex"; });
 
-  // ------------------------------------------------------------
-  // Shooting / damage / respawn rules
-  // ------------------------------------------------------------
-  const SHOT_DMG = 25;
-  const MAX_HP = 100;
+    // Deklarera connected tidigt så UI-klick-handler kan använda den
+    let connected = false;
 
-  const PELLETS = 8;
-  const SPREAD = 0.06;
+    ui.addEventListener("click", (e)=>{
+      if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON" || e.target.tagName === "LABEL") return;
+      if (connected) controls.lock();
+    });
 
-  let running = false;
+    // =========================
+    // 3D VAPEN – barn till kameran, följer alltid med
+    // =========================
+    const weaponGroup = new THREE.Group();
 
-  function shoot() {
-    if (!running) return;
-    if (!player.alive) return;
+    // Vapentexturer laddas async – vi sätter upp materialen direkt
+    const wTexLoader = new THREE.TextureLoader();
+    const woodTex  = wTexLoader.load('/weapon_wood.png');
+    const metalTex = wTexLoader.load('/weapon_metal.png');
+    woodTex.wrapS  = woodTex.wrapT  = THREE.RepeatWrapping;
+    metalTex.wrapS = metalTex.wrapT = THREE.RepeatWrapping;
+    woodTex.repeat.set(2, 1);
+    metalTex.repeat.set(3, 2);
 
-    sfx('shoot');
+    const mDark  = new THREE.MeshLambertMaterial({ map: metalTex, color: 0x888890 });
+    const mMid   = new THREE.MeshLambertMaterial({ map: metalTex, color: 0xaaaabc });
+    const mLight = new THREE.MeshLambertMaterial({ map: metalTex, color: 0xccccdd });
+    const mWood  = new THREE.MeshLambertMaterial({ map: woodTex,  color: 0xbb8855 });
+    const mWoodL = new THREE.MeshLambertMaterial({ map: woodTex,  color: 0xddaa77 });
+    const mHand  = new THREE.MeshLambertMaterial({ color: 0xc87848 });
+    const mHandL = new THREE.MeshLambertMaterial({ color: 0xe09060 });
 
-    for (let p = 0; p < PELLETS; p++) {
-      const a = player.a + (Math.random() * 2 - 1) * SPREAD;
-      const hit = rayHitEntity(player.x, player.y, a, 8.5);
-      if (hit && hit.ent && hit.ent.alive) {
-        hit.ent.hp -= SHOT_DMG;
-        sfx('hit');
-        if (hit.ent.hp <= 0) {
-          hit.ent.alive = false;
-          hit.ent.respawnT = 1.8;
+    function addBox(w,h,d, mat, x,y,z){
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+      m.position.set(x,y,z);
+      weaponGroup.add(m);
+    }
+
+    // Pipa – pekar mot -Z (framåt)
+    addBox(0.055, 0.055, 1.1,  mDark,   0,       0.005,  -0.55);
+    addBox(0.035, 0.008, 1.08, mLight,  0,       0.034,  -0.55); // reflex-list
+    // Underpipa
+    addBox(0.042, 0.042, 0.78, mDark,   0,      -0.052,  -0.39);
+    // Receiver
+    addBox(0.11,  0.10,  0.28, mDark,   0,       0.005,   0.08);
+    addBox(0.085, 0.065, 0.24, mMid,    0,       0.010,   0.08);
+    addBox(0.08,  0.010, 0.22, mLight,  0,       0.052,   0.07); // reflex
+    // Pump (trä)
+    addBox(0.10,  0.068, 0.22, mWood,   0,      -0.018,  -0.22);
+    addBox(0.076, 0.040, 0.18, mWoodL,  0,      -0.008,  -0.22);
+    // Kolv (trä)
+    addBox(0.088, 0.088, 0.26, mWood,   0,      -0.004,   0.29);
+    addBox(0.068, 0.060, 0.22, mWoodL,  0,       0.004,   0.28);
+    addBox(0.092, 0.092, 0.014,mDark,   0,      -0.004,   0.42); // kolfplatta
+    // Pistolgrepp
+    addBox(0.065, 0.13,  0.08, mWood,   0.006, -0.085,   0.12);
+    addBox(0.046, 0.10,  0.06, mWoodL,  0.006, -0.072,   0.12);
+    // Höger hand
+    addBox(0.088, 0.095, 0.13, mHand,   0.042, -0.098,   0.14);
+    addBox(0.065, 0.068, 0.10, mHandL,  0.042, -0.088,   0.14);
+    addBox(0.022, 0.065, 0.022,mHand,   0.018, -0.155,   0.10); // finger 1
+    addBox(0.022, 0.065, 0.022,mHand,   0.042, -0.158,   0.10); // finger 2
+    addBox(0.022, 0.060, 0.022,mHand,   0.066, -0.152,   0.10); // finger 3
+    addBox(0.018, 0.050, 0.022,mHand,   0.088, -0.144,   0.10); // finger 4
+    addBox(0.022, 0.048, 0.048,mHand,   0.004, -0.068,   0.08); // tumme
+    // Vänster hand (pump)
+    addBox(0.088, 0.075, 0.15, mHand,   0.042, -0.055,  -0.22);
+    addBox(0.065, 0.055, 0.12, mHandL,  0.042, -0.048,  -0.22);
+    addBox(0.022, 0.058, 0.022,mHand,   0.018, -0.115,  -0.26); // finger 1
+    addBox(0.022, 0.058, 0.022,mHand,   0.042, -0.118,  -0.26); // finger 2
+    addBox(0.022, 0.052, 0.022,mHand,   0.066, -0.112,  -0.26); // finger 3
+    addBox(0.018, 0.044, 0.022,mHand,   0.088, -0.105,  -0.26); // finger 4
+
+    // Vapnet placeras relativt kameran – nere till höger, pekar framåt
+    weaponGroup.position.set(0.22, -0.20, -0.30);
+    weaponGroup.rotation.y = 0.06;
+    weaponGroup.visible = false;
+
+    // NYCKELN: lägg vapnet som barn till kameran → följer alltid med
+    camera.add(weaponGroup);
+
+    // Separata vapenljus i världsscenen (påverkar vapnet via Lambert)
+    const wKeyLight = new THREE.PointLight(0xffffff, 1.5, 3);
+    wKeyLight.position.set(0.3, 0.2, -0.1);
+    camera.add(wKeyLight);
+
+    // ── MUZZLE FLASH – PointLight + canvas-textur starburst ─────────────────
+    const muzzleLight = new THREE.PointLight(0xff8800, 0, 4);
+    muzzleLight.position.set(0, 0.005, -1.1);
+    weaponGroup.add(muzzleLight);
+
+    // Bygg starburst-textur i canvas
+    const muzzleCanvas = document.createElement('canvas');
+    muzzleCanvas.width = muzzleCanvas.height = 128;
+    const mCtx = muzzleCanvas.getContext('2d');
+    const grad = mCtx.createRadialGradient(64,64,2, 64,64,64);
+    grad.addColorStop(0,   'rgba(255,255,220,1)');
+    grad.addColorStop(0.08,'rgba(255,200,50,1)');
+    grad.addColorStop(0.25,'rgba(255,120,0,0.8)');
+    grad.addColorStop(1,   'rgba(255,60,0,0)');
+    mCtx.fillStyle = grad;
+    mCtx.fillRect(0,0,128,128);
+    // Stjärnstrålar
+    mCtx.strokeStyle = 'rgba(255,220,80,0.9)';
+    for(let a=0; a<8; a++){
+      const ang = a * Math.PI/4;
+      mCtx.lineWidth = 3 - a%2*1.5;
+      mCtx.beginPath();
+      mCtx.moveTo(64,64);
+      mCtx.lineTo(64 + Math.cos(ang)*62, 64 + Math.sin(ang)*62);
+      mCtx.stroke();
+    }
+    const muzzleTex = new THREE.CanvasTexture(muzzleCanvas);
+    const muzzleSpriteMat = new THREE.SpriteMaterial({
+      map: muzzleTex,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const muzzleSprite = new THREE.Sprite(muzzleSpriteMat);
+    muzzleSprite.scale.set(0.15, 0.15, 1);
+    muzzleSprite.position.set(0, 0.005, -1.1);
+    weaponGroup.add(muzzleSprite);
+
+    let muzzleFlashLife = 0;
+
+    // Vapen-bob variabler
+    let weaponBobT = 0;
+    let weaponKick = 0;
+
+    controls.addEventListener("lock", () => { weaponGroup.visible = true; });
+    controls.addEventListener("unlock", () => { weaponGroup.visible = false; });
+
+    // ── BULLET TRACERS ───────────────────────────────────────────────────────
+    // Bygg tracer-textur (gul glödande stav)
+    const tracerCanvas = document.createElement('canvas');
+    tracerCanvas.width = 32; tracerCanvas.height = 8;
+    const tCtx = tracerCanvas.getContext('2d');
+    const tGrad = tCtx.createLinearGradient(0,0,32,0);
+    tGrad.addColorStop(0,   'rgba(255,255,200,0)');
+    tGrad.addColorStop(0.3, 'rgba(255,220,50,1)');
+    tGrad.addColorStop(0.7, 'rgba(255,200,50,1)');
+    tGrad.addColorStop(1,   'rgba(255,255,200,0)');
+    tCtx.fillStyle = tGrad;
+    tCtx.fillRect(0,0,32,8);
+    const tracerTex = new THREE.CanvasTexture(tracerCanvas);
+
+    const tracers = [];
+
+    function spawnTracer(from, dir){
+      // Kula: synlig cylinder + glödande sprite
+      const length = 1.8;
+      const geo = new THREE.CylinderGeometry(0.04, 0.04, length, 6);
+      geo.rotateX(Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffee66 });
+      const mesh = new THREE.Mesh(geo, mat);
+
+      // Glow-sprite runt kulan
+      const glowMat = new THREE.SpriteMaterial({
+        map: tracerTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 1,
+      });
+      const glow = new THREE.Sprite(glowMat);
+      glow.scale.set(length * 2.5, 0.25, 1);
+
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.add(glow);
+      group.position.copy(from);
+
+      // Peka i skjutriktningen
+      const up = Math.abs(dir.y) < 0.99 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
+      group.quaternion.setFromRotationMatrix(
+        new THREE.Matrix4().lookAt(new THREE.Vector3(), dir, up)
+      );
+      // lookAt pekar +Z mot dir, men cylinder pekar +Y → rotera
+      group.rotateX(Math.PI / 2);
+
+      scene.add(group);
+      tracers.push({ group, dir: dir.clone().normalize(), life: 0.22, speed: 120 });
+    }
+
+    function updateTracers(dt){
+      for(let i = tracers.length-1; i >= 0; i--){
+        const t = tracers[i];
+        t.group.position.addScaledVector(t.dir, t.speed * dt);
+        t.life -= dt;
+        if(t.life <= 0){
+          scene.remove(t.group);
+          tracers.splice(i, 1);
         }
       }
     }
-  }
 
-  addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
-    if (!pointerLocked) return;
-    shoot();
-  });
+    // ── HIT DETECTION (lokal raycaster mot andra spelare) ───────────────────
+    const localRaycaster = new THREE.Raycaster();
 
-  function castRay(x, y, a, maxDist) {
-    const dx = Math.cos(a), dy = Math.sin(a);
-    let dist = 0;
-    const step = 0.02;
-    for (let i = 0; i < (maxDist / step) | 0; i++) {
-      x += dx * step;
-      y += dy * step;
-      dist += step;
-      if (cell(x, y) === 1) return dist;
-    }
-    return maxDist;
-  }
-
-  function rayHitEntity(x, y, a, maxDist) {
-    const wallDist = castRay(x, y, a, maxDist);
-    let best = null;
-    for (const b of bots) {
-      if (!b.alive) continue;
-      const vx = b.x - x, vy = b.y - y;
-      const along = vx * Math.cos(a) + vy * Math.sin(a);
-      if (along <= 0 || along >= wallDist) continue;
-      const perp = Math.abs(-vx * Math.sin(a) + vy * Math.cos(a));
-      if (perp <= ENT_RADIUS) {
-        if (!best || along < best.dist) best = { ent: b, dist: along };
+    function localShootRaycast(){
+      localRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const targets = [...others.values()].flatMap(o => {
+        const meshes = [];
+        o.humanoid.traverse(m => { if(m.isMesh) meshes.push(m); });
+        return meshes;
+      });
+      const hits = localRaycaster.intersectObjects(targets);
+      if(hits.length > 0){
+        const hitMesh = hits[0].object;
+        const hitOther = [...others.values()].find(o => {
+          let found = false;
+          o.humanoid.traverse(m => { if(m === hitMesh) found = true; });
+          return found;
+        });
+        if(hitOther) showToast(`TRÄFF på ${hitOther.last.name || "spelare"}!`);
       }
     }
-    return best;
-  }
 
-  function respawnPlayer() {
-    player.x = 3.5; player.y = 3.5; player.a = 0;
-    player.hp = MAX_HP;
-    player.alive = true;
-    player.respawnT = 0;
-  }
+    // =========================
+    // Enfärgade material (snabbare)
+    // =========================
+    const texLoader = new THREE.TextureLoader();
 
-  // ------------------------------------------------------------
-  // Movement with collision
-  // ------------------------------------------------------------
-  function tryMove(ent, nx, ny) {
-    const r = ENT_RADIUS;
-    let x = ent.x, y = ent.y;
+    const wallTex = texLoader.load('/wall.png');
+    wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+    wallTex.repeat.set(1, 1);
+    const wallMat = new THREE.MeshLambertMaterial({ map: wallTex });
 
-    if (cell(nx + (nx > x ? r : -r), y) === 0 && cell(nx, y + r) === 0 && cell(nx, y - r) === 0) {
-      x = nx;
+    const floorTex = texLoader.load('/floor.png');
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    const floorMat = new THREE.MeshLambertMaterial({ map: floorTex });
+
+    // =========================
+    // Level (tilemap)
+    // =========================
+    const cellSize = 4;
+    const MAP = [
+      "####################",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "####################"
+    ];
+    const mapH = MAP.length;
+    const mapW = MAP[0].length;
+    floorTex.repeat.set(mapW * 0.5, mapH * 0.5);
+
+    function isWallCell(cx, cz){
+      if (cx < 0 || cz < 0 || cx >= mapW || cz >= mapH) return true;
+      return MAP[cz][cx] === "#";
     }
-    if (cell(x, ny + (ny > y ? r : -r)) === 0 && cell(x + r, ny) === 0 && cell(x - r, ny) === 0) {
-      y = ny;
-    }
-    ent.x = x; ent.y = y;
-  }
 
-  function updateBots(dt) {
-    for (const b of bots) {
-      if (!b.alive) {
-        b.respawnT -= dt;
-        if (b.respawnT <= 0) {
-          b.hp = MAX_HP;
-          b.alive = true;
-          for (let tries = 0; tries < 200; tries++) {
-            const x = 1.5 + Math.random() * (MAP_W - 3);
-            const y = 1.5 + Math.random() * (MAP_H - 3);
-            if (cell(x, y) === 0 && dist2(x, y, player.x, player.y) > 9) {
-              b.x = x; b.y = y;
-              break;
+    const floorGeo = new THREE.PlaneGeometry(mapW*cellSize, mapH*cellSize);
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI/2;
+    floor.position.set((mapW*cellSize)/2, 0, (mapH*cellSize)/2);
+    scene.add(floor);
+
+    // Inget tak – öppen arena
+
+    // InstancedMesh för väggar (snabbare än enskilda meshar)
+    const wallCount = MAP.reduce((n,row)=>n+[...row].filter(c=>c==='#').length, 0);
+    const wallGeo = new THREE.BoxGeometry(cellSize, 6, cellSize);
+    const wallInst = new THREE.InstancedMesh(wallGeo, wallMat, wallCount);
+    wallInst.receiveShadow = false;
+    scene.add(wallInst);
+    let wi = 0;
+    const dummy = new THREE.Object3D();
+    for (let z=0; z<mapH; z++){
+      for (let x=0; x<mapW; x++){
+        if (MAP[z][x] === "#"){
+          dummy.position.set(x*cellSize + cellSize/2, 3, z*cellSize + cellSize/2);
+          dummy.updateMatrix();
+          wallInst.setMatrixAt(wi++, dummy.matrix);
+        }
+      }
+    }
+    wallInst.instanceMatrix.needsUpdate = true;
+
+    // =========================
+    // Other players – 3D humanoid meshes
+    // =========================
+    const others = new Map();
+
+    // Delade material för alla spelare
+    const pSkin   = new THREE.MeshLambertMaterial({ color: 0xe8b880 });
+    const pShirt  = new THREE.MeshLambertMaterial({ color: 0x2255aa });
+    const pPants  = new THREE.MeshLambertMaterial({ color: 0x223366 });
+    const pShoe   = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const pHair   = new THREE.MeshLambertMaterial({ color: 0x2a1a08 });
+    const pDead   = new THREE.MeshLambertMaterial({ color: 0x444444 });
+
+    function makeHumanoid(){
+      const g = new THREE.Group();
+
+      const add = (geo, mat, x, y, z) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(x, y, z);
+        m.userData.mat = mat; // spara för dödfärg-byte
+        g.add(m);
+        return m;
+      };
+
+      // Huvud
+      add(new THREE.BoxGeometry(0.42, 0.46, 0.40), pSkin,  0,  1.68, 0);
+      add(new THREE.BoxGeometry(0.44, 0.16, 0.42), pHair,  0,  1.87, 0);  // hår
+      // Ögon
+      add(new THREE.BoxGeometry(0.09, 0.07, 0.05), pShoe,  0.10, 1.70, 0.19);
+      add(new THREE.BoxGeometry(0.09, 0.07, 0.05), pShoe, -0.10, 1.70, 0.19);
+
+      // Kropp
+      add(new THREE.BoxGeometry(0.60, 0.70, 0.32), pShirt, 0, 1.10, 0);
+
+      // Armar
+      add(new THREE.BoxGeometry(0.18, 0.60, 0.18), pShirt,  0.39, 1.10, 0);
+      add(new THREE.BoxGeometry(0.18, 0.60, 0.18), pShirt, -0.39, 1.10, 0);
+      add(new THREE.BoxGeometry(0.15, 0.28, 0.15), pSkin,   0.39, 0.65, 0); // handled/hand
+      add(new THREE.BoxGeometry(0.15, 0.28, 0.15), pSkin,  -0.39, 0.65, 0);
+
+      // Ben
+      add(new THREE.BoxGeometry(0.22, 0.62, 0.22), pPants,  0.15, 0.44, 0);
+      add(new THREE.BoxGeometry(0.22, 0.62, 0.22), pPants, -0.15, 0.44, 0);
+      add(new THREE.BoxGeometry(0.22, 0.30, 0.22), pSkin,   0.15, 0.02, 0);
+      add(new THREE.BoxGeometry(0.22, 0.30, 0.22), pSkin,  -0.15, 0.02, 0);
+
+      // Skor
+      add(new THREE.BoxGeometry(0.24, 0.12, 0.34), pShoe,  0.15, -0.16, 0.05);
+      add(new THREE.BoxGeometry(0.24, 0.12, 0.34), pShoe, -0.15, -0.16, 0.05);
+
+      return g;
+    }
+
+    function makeNameLabel(name){
+      const c = document.createElement("canvas");
+      c.width = 256; c.height = 48;
+      const g = c.getContext("2d");
+      g.clearRect(0,0,256,48);
+      g.fillStyle = "rgba(0,0,0,0.5)";
+      g.roundRect(4, 4, 248, 40, 8);
+      g.fill();
+      g.font = "bold 22px Arial, sans-serif";
+      g.fillStyle = "#fff";
+      g.textAlign = "center";
+      g.fillText(name, 128, 30);
+      const tex = new THREE.CanvasTexture(c);
+      tex.magFilter = THREE.LinearFilter;
+      return tex;
+    }
+
+    function ensureOther(id, name){
+      if (others.has(id)) return others.get(id);
+
+      const humanoid = makeHumanoid();
+      scene.add(humanoid);
+
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameLabel(name), transparent: true, depthTest: false }));
+      label.scale.set(2.2, 0.55, 1);
+      scene.add(label);
+
+      // Muzzle flash för motståndare
+      const enemyFlashLight = new THREE.PointLight(0xff8800, 0, 5);
+      humanoid.add(enemyFlashLight);
+      enemyFlashLight.position.set(0.42, 1.10, -0.5); // ungefär vid hand/vapnet
+
+      const o = {
+        humanoid,
+        label,
+        flashLight: enemyFlashLight,
+        flashLife: 0,
+        last: { x:0, z:0, yaw:0, pitch:0, hp:100, name },
+        render: { x:0, z:0 }
+      };
+      others.set(id, o);
+      return o;
+    }
+
+    function removeOther(id){
+      const o = others.get(id);
+      if (!o) return;
+      scene.remove(o.humanoid);
+      scene.remove(o.label);
+      others.delete(id);
+    }
+
+    // =========================
+    // Player movement: Doom-ish “slide”
+    // =========================
+    const keys = new Set();
+    addEventListener("keydown", e => keys.add(e.code));
+    addEventListener("keyup", e => keys.delete(e.code));
+
+    // Tweakables (more classic Doom feel)
+    const MOVE_SPEED = 10.4;    // higher top speed
+    const ACCEL_GROUND = 30.0;  // snappier acceleration
+    const FRICTION = 10.0;      // lower friction => more sliding
+    const STRAFE_BIAS = 1.0;    // keep strafe same speed
+
+    const GRAVITY     = 22.0;
+    const JUMP_SPEED  = 7.0;
+    const EYE_STAND   = 1.7;
+    const EYE_CROUCH  = 0.75;
+    const CROUCH_SPEED= 8.0;
+
+    const player = {
+      id: null,
+      pos: new THREE.Vector3(cellSize*2, EYE_STAND, cellSize*2),
+      vel: new THREE.Vector3(),
+      radius: 0.55,
+      hp: 100,
+      ammo: 50,
+      room: "lobby",
+      onGround: true,
+      eyeY: EYE_STAND,      // aktuell ögonhöjd (smoothad)
+      crouching: false,
+    };
+    controls.getObject().position.copy(player.pos);
+
+    function circleHitsWall(x, z, r){
+      const minCX = Math.floor((x - r) / cellSize);
+      const maxCX = Math.floor((x + r) / cellSize);
+      const minCZ = Math.floor((z - r) / cellSize);
+      const maxCZ = Math.floor((z + r) / cellSize);
+
+      for (let cz=minCZ; cz<=maxCZ; cz++){
+        for (let cx=minCX; cx<=maxCX; cx++){
+          if (!isWallCell(cx,cz)) continue;
+          const x0 = cx*cellSize, x1 = x0 + cellSize;
+          const z0 = cz*cellSize, z1 = z0 + cellSize;
+          const px = Math.max(x0, Math.min(x, x1));
+          const pz = Math.max(z0, Math.min(z, z1));
+          const dx = x - px, dz = z - pz;
+          if (dx*dx + dz*dz < r*r) return true;
+        }
+      }
+      return false;
+    }
+
+    function collideAndSlide(newPos){
+      const r = player.radius;
+
+      const tryX = new THREE.Vector3(newPos.x, newPos.y, player.pos.z);
+      if (!circleHitsWall(tryX.x, tryX.z, r)) player.pos.x = tryX.x;
+
+      const tryZ = new THREE.Vector3(player.pos.x, newPos.y, newPos.z);
+      if (!circleHitsWall(tryZ.x, tryZ.z, r)) player.pos.z = tryZ.z;
+    }
+
+    // Doom-ish: accelerate towards wish direction (instead of simple lerp)
+    function accelerate(vx, vz, wishX, wishZ, wishSpeed, accel, dt){
+      const currentSpeed = vx*wishX + vz*wishZ; // dot(v, wishDir)
+      const addSpeed = wishSpeed - currentSpeed;
+      if (addSpeed <= 0) return { vx, vz };
+
+      let accelSpeed = accel * dt * wishSpeed;
+      if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+
+      return { vx: vx + accelSpeed*wishX, vz: vz + accelSpeed*wishZ };
+    }
+
+    function applyFriction(vx, vz, friction, dt){
+      const speed = Math.hypot(vx, vz);
+      if (speed < 1e-6) return { vx:0, vz:0 };
+
+      const drop = speed * friction * dt;
+      const newSpeed = Math.max(0, speed - drop);
+      const scale = newSpeed / speed;
+      return { vx: vx*scale, vz: vz*scale };
+    }
+
+    function movePlayer(dt){
+      // Camera forward (XZ)
+      const forward = new THREE.Vector3();
+      controls.getDirection(forward);
+      forward.y = 0; forward.normalize();
+
+      // Right vector for strafing
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+
+      // W=framåt, S=bakåt, A=strafe vänster, D=strafe höger
+      let f = 0, s = 0;
+      if (keys.has("KeyW") || keys.has("ArrowUp"))    f += 1;
+      if (keys.has("KeyS") || keys.has("ArrowDown"))  f -= 1;
+      if (keys.has("KeyA") || keys.has("ArrowLeft"))  s -= 1;
+      if (keys.has("KeyD") || keys.has("ArrowRight")) s += 1;
+
+      // Ducka med C eller Ctrl
+      const wantCrouch = keys.has("KeyC") || keys.has("ControlLeft") || keys.has("ControlRight");
+      player.crouching = wantCrouch;
+
+      // Hoppa med Space
+      if ((keys.has("Space")) && player.onGround) {
+        player.vel.y = JUMP_SPEED;
+        player.onGround = false;
+        playSound('jump');
+      }
+
+      // XZ-rörelse
+      const wish = new THREE.Vector3()
+        .addScaledVector(forward, f)
+        .addScaledVector(right, s * STRAFE_BIAS);
+
+      const speed = player.crouching ? MOVE_SPEED * 0.5 : MOVE_SPEED;
+      let wishSpeed = wish.lengthSq() > 0 ? (wish.normalize(), speed) : 0;
+
+      const fr = applyFriction(player.vel.x, player.vel.z, FRICTION, dt);
+      player.vel.x = fr.vx; player.vel.z = fr.vz;
+      if (wishSpeed > 0) {
+        const acc = accelerate(player.vel.x, player.vel.z, wish.x, wish.z, wishSpeed, ACCEL_GROUND, dt);
+        player.vel.x = acc.vx; player.vel.z = acc.vz;
+      }
+
+      // Gravitation
+      if (!player.onGround) player.vel.y -= GRAVITY * dt;
+
+      // Integrera position
+      const floorY = 0;
+      player.pos.x += player.vel.x * dt;
+      player.pos.z += player.vel.z * dt;
+      player.pos.y += player.vel.y * dt;
+
+      // Mark-kollision
+      const wasAbove = !player.onGround;
+      if (player.pos.y <= floorY) {
+        if (wasAbove && player.vel.y < -3) playSound('land');
+        player.pos.y = floorY;
+        player.vel.y = 0;
+        player.onGround = true;
+      } else {
+        player.onGround = false;
+      }
+
+      // Vägg-kollision
+      const r = player.radius;
+      const tryX = new THREE.Vector3(player.pos.x, player.pos.y, player.pos.z);
+      if (circleHitsWall(player.pos.x, player.pos.z, r)){
+        player.pos.x -= player.vel.x * dt;
+        player.vel.x = 0;
+      }
+      if (circleHitsWall(player.pos.x, player.pos.z, r)){
+        player.pos.z -= player.vel.z * dt;
+        player.vel.z = 0;
+      }
+
+      // Smooth ögonhöjd (ducka/resa sig)
+      const targetEye = player.crouching ? EYE_CROUCH : EYE_STAND;
+      player.eyeY += (targetEye - player.eyeY) * Math.min(1, CROUCH_SPEED * dt);
+
+      // Sätt kameran
+      controls.getObject().position.set(player.pos.x, player.pos.y + player.eyeY, player.pos.z);
+
+      // 3D weapon bob
+      const speedNow = Math.hypot(player.vel.x, player.vel.z);
+      weaponBobT += speedNow * 0.004;
+      const bobY = Math.sin(weaponBobT * 6) * Math.min(speedNow, 10) * 0.003;
+      const bobX = Math.sin(weaponBobT * 3) * Math.min(speedNow, 10) * 0.001;
+      weaponKick = Math.max(0, weaponKick - 0.005);
+      const duckOffset = player.crouching ? -0.05 : 0;
+      const wp = new THREE.Vector3(0.22 + bobX, -0.20 + bobY + weaponKick + duckOffset, -0.30);
+      weaponGroup.position.copy(wp);
+    }
+
+    // =========================
+    // Networking
+    // =========================
+    let ws = null;
+
+    function wsSend(obj){
+      if (!ws || ws.readyState !== 1) return;
+      ws.send(JSON.stringify(obj));
+    }
+
+    function connectAndJoin(){
+      const name = document.getElementById("name").value || "player";
+      const room = document.getElementById("room").value || "lobby";
+      player.room = room;
+
+      statusEl.textContent = `Ansluter till ${WS_URL} ...`;
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        connected = true;
+        statusEl.textContent = "Ansluten. Laddar rum...";
+        wsSend({ t:"join", name, room });
+      };
+
+      ws.onclose = () => {
+        connected = false;
+        statusEl.textContent = "Frånkopplad.";
+        player.id = null;
+        for (const id of [...others.keys()]) removeOther(id);
+        ui.style.display = "flex";
+      };
+
+      ws.onerror = () => {
+        statusEl.textContent = "Fel vid anslutning (kolla Render logs).";
+      };
+
+      ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+
+        if (msg.t === "welcome") {
+          player.id = msg.id;
+          player.hp = msg.you.hp;
+          player.pos.x = msg.you.x; player.pos.z = msg.you.z;
+          controls.getObject().position.copy(player.pos);
+
+          for (const p of msg.players) {
+            if (p.id === player.id) continue;
+            const o = ensureOther(p.id, p.name);
+            o.last = { ...p };
+            o.render.x = p.x; o.render.z = p.z;
+          }
+
+          showToast(`Joined: ${msg.room}`);
+          ui.style.display = "none";
+          setTimeout(() => controls.lock(), 50);
+          return;
+        }
+
+        if (msg.t === "player_join") {
+          if (msg.p.id === player.id) return;
+          const o = ensureOther(msg.p.id, msg.p.name);
+          o.last = { ...msg.p };
+          o.render.x = msg.p.x; o.render.z = msg.p.z;
+          showToast(`${msg.p.name} joined`);
+          return;
+        }
+
+        if (msg.t === "player_leave") {
+          removeOther(msg.id);
+          return;
+        }
+
+        if (msg.t === "player_name") {
+          const o = ensureOther(msg.id, msg.name);
+          o.label.material.map = makeNameLabel(msg.name);
+          o.label.material.needsUpdate = true;
+          o.last.name = msg.name;
+          return;
+        }
+
+        if (msg.t === "hit") {
+          if (msg.to === player.id) {
+            player.hp = msg.hp;
+            triggerHitFlash();
+            showToast("TRÄFFAD!");
+          }
+          if (msg.from === player.id) showToast("TRÄFF!");
+          // Visa muzzle flash på motståndaren som sköt
+          const shooter = others.get(msg.from);
+          if (shooter) {
+            shooter.flashLife = 1.0;
+            shooter.flashLight.intensity = 5;
+          }
+          const o = others.get(msg.to);
+          if (o) o.last.hp = msg.hp;
+          return;
+        }
+
+        if (msg.t === "respawn") {
+          if (msg.id === player.id) {
+            player.hp = msg.hp;
+            player.pos.x = msg.x; player.pos.z = msg.z;
+            player.vel.set(0,0,0);
+            controls.getObject().position.copy(player.pos);
+            showToast("RESPAWN");
+          } else {
+            const o = ensureOther(msg.id, (others.get(msg.id)?.last?.name) || "player");
+            o.last.x = msg.x; o.last.z = msg.z; o.last.hp = msg.hp;
+            o.render.x = msg.x; o.render.z = msg.z;
+          }
+          return;
+        }
+
+        if (msg.t === "state") {
+          for (const p of msg.players) {
+            if (p.id === player.id) {
+              player.hp = p.hp;
+              continue;
             }
+            const o = ensureOther(p.id, p.name);
+            o.last = { ...p };
           }
         }
-        continue;
+      };
+    }
+
+    document.getElementById("join").addEventListener("click", () => {
+      // Starta alltid lokalt (offline-läge om ingen server)
+      player.room = document.getElementById("room").value || "lobby";
+      player.hp = 100;
+      player.ammo = 50;
+      player.pos.set(cellSize*2, 1.7, cellSize*2);
+      controls.getObject().position.copy(player.pos);
+      ui.style.display = "none";
+      updateHUD();
+      setTimeout(() => controls.lock(), 50);
+      // Försök också ansluta till server
+      connectAndJoin();
+    });
+
+    // =========================
+    // Input sending (world-space)
+    // =========================
+    function getYawPitch(){
+      const yaw = controls.getObject().rotation.y;
+      const pitch = camera.rotation.x;
+      return { yaw, pitch };
+    }
+
+    function computeWorldInput(){
+      const forward = new THREE.Vector3();
+      controls.getDirection(forward);
+      forward.y = 0; forward.normalize();
+
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+
+      let f = 0, s = 0;
+      if (keys.has("KeyW") || keys.has("ArrowUp"))    f += 1;
+      if (keys.has("KeyS") || keys.has("ArrowDown"))  f -= 1;
+      if (keys.has("KeyA") || keys.has("ArrowLeft"))  s -= 1;
+      if (keys.has("KeyD") || keys.has("ArrowRight")) s += 1;
+
+      const v = new THREE.Vector3()
+        .addScaledVector(forward, f)
+        .addScaledVector(right, s);
+
+      if (v.lengthSq() > 0) v.normalize();
+      return { ix: v.x, iz: v.z };
+    }
+
+    // shooting
+    let shootCooldown = 0;
+    addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      if (!controls.isLocked) return;
+      if (shootCooldown > 0) return;
+      if (player.ammo <= 0) { showToast("TOMT! (R = ladda om)"); return; }
+
+      player.ammo--;
+      shootCooldown = 0.12;
+      playSound('shoot');
+      triggerMuzzleFlash();
+
+      // Spawn tracer från kameran framåt
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      const from = camera.position.clone().addScaledVector(dir, 0.5);
+      spawnTracer(from, dir);
+
+      // Lokal hit-check (visuell feedback direkt)
+      localShootRaycast();
+
+      // Skicka till server
+      const { yaw, pitch } = getYawPitch();
+      wsSend({ t:"shoot", yaw, pitch });
+    });
+
+    // Reload with R
+    addEventListener("keydown", e => {
+      if (e.code === "KeyR" && controls.isLocked) {
+        player.ammo = 50;
+        playSound('reload');
+        showToast("LADDAT!");
+        updateHUD();
+      }
+    });
+
+    let inputSendAccum = 0;
+
+    // =========================
+    // Loop
+    // =========================
+    const clock = new THREE.Clock();
+
+    function updateOthers(dt){
+      const interp = 1 - Math.exp(-18 * dt);
+      for (const [id, o] of others) {
+        const tx = o.last.x, tz = o.last.z;
+        o.render.x += (tx - o.render.x) * interp;
+        o.render.z += (tz - o.render.z) * interp;
+
+        // y=0 = golvet, figuren är ~1.9 hög, sätt origin vid fötterna
+        o.humanoid.position.set(o.render.x, 0, o.render.z);
+
+        // Vänd figuren mot kameran (yaw från servern om tillgänglig)
+        if (o.last.yaw !== undefined) {
+          o.humanoid.rotation.y = o.last.yaw + Math.PI;
+        }
+
+        // Namnlapp ovanför huvud
+        o.label.position.set(o.render.x, 2.4, o.render.z);
+
+        // Dödfärg
+        const hp = o.last.hp ?? 100;
+        const alive = hp > 0;
+        o.humanoid.traverse(m => {
+          if (m.isMesh) m.material = alive ? m.userData.mat : pDead;
+        });
+
+        // Animera motståndarens muzzle flash
+        if (o.flashLife > 0) {
+          o.flashLife = Math.max(0, o.flashLife - dt * 18);
+          o.flashLight.intensity = o.flashLife * 5;
+        }
+      }
+    }
+
+    // Hit flash
+    const hitflash = document.getElementById("hitflash");
+    function triggerHitFlash(){
+      hitflash.style.background = "rgba(220,0,0,0.35)";
+      setTimeout(()=> hitflash.style.background = "rgba(220,0,0,0)", 150);
+    }
+
+    // Muzzle flash on weapon
+    function triggerMuzzleFlash(){
+      weaponKick = 0.04;
+      muzzleFlashLife = 1.0;
+      muzzleLight.intensity = 6;
+      muzzleSpriteMat.opacity = 1;
+      // Liten vit screen-flash
+      hitflash.style.background = "rgba(255,210,100,0.06)";
+      setTimeout(()=> hitflash.style.background = "", 55);
+    }
+
+    const hudHp      = document.getElementById("hud-hp");
+    const hudAmmo    = document.getElementById("hud-ammo");
+    const hudFace    = document.getElementById("hud-face");
+    const hudPlayers = document.getElementById("hud-players");
+    const hudRoom    = document.getElementById("hud-room");
+
+    function updateHUD(){
+      const hp = Math.max(0, player.hp);
+      hudHp.textContent   = hp;
+      hudAmmo.textContent = player.ammo;
+      hudPlayers.textContent = others.size + 1;
+      hudRoom.textContent = connected ? `RUM: ${player.room}` : "OFFLINE";
+
+      // Face
+      if      (hp > 70) hudFace.textContent = "😐";
+      else if (hp > 40) hudFace.textContent = "😬";
+      else if (hp > 15) hudFace.textContent = "😰";
+      else              hudFace.textContent = "😵";
+
+      // HP color
+      hudHp.style.color = hp > 50 ? "#ff4400" : hp > 25 ? "#ffaa00" : "#ff0000";
+    }
+
+    function handleResize(){
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    addEventListener("resize", handleResize);
+
+    let perfTime = 0;
+
+    function tick(){
+      const dt = Math.min(0.033, clock.getDelta());
+      perfTime += dt * 1000;
+
+      if (shootCooldown > 0) shootCooldown -= dt;
+
+      if (controls.isLocked){
+        movePlayer(dt);
       }
 
-      const dx = player.x - b.x, dy = player.y - b.y;
-      const dd = Math.hypot(dx, dy) || 1;
-      const spd = 1.15;
-      const vx = (dx / dd) * spd;
-      const vy = (dy / dd) * spd;
-
-      let sx = 0, sy = 0;
-      for (const o of bots) {
-        if (o === b || !o.alive) continue;
-        const ox = b.x - o.x, oy = b.y - o.y;
-        const od = Math.hypot(ox, oy);
-        if (od > 0 && od < 0.5) {
-          sx += ox / od * 0.35;
-          sy += oy / od * 0.35;
+      if (connected) {
+        inputSendAccum += dt;
+        if (inputSendAccum >= 1/30) {
+          inputSendAccum = 0;
+          const { yaw, pitch } = getYawPitch();
+          const inp = computeWorldInput();
+          wsSend({ t:"input", ix: inp.ix, iz: inp.iz, yaw, pitch });
         }
       }
 
-      const nx = b.x + (vx + sx) * dt;
-      const ny = b.y + (vy + sy) * dt;
-      tryMove(b, nx, ny);
+      updateOthers(dt);
+      updateTracers(dt);
+      updateHUD();
 
-      if (player.alive && dist2(b.x, b.y, player.x, player.y) < (ENT_RADIUS + 0.22) ** 2) {
-        player.hp -= 20 * dt;
-        if (player.hp <= 0) {
-          player.hp = 0;
-          player.alive = false;
-          player.respawnT = 2.0;
-          sfx('dead');
-        }
-      }
-    }
-  }
-
-  // ------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------
-  function render() {
-    const w = canvas.width, h = canvas.height;
-
-    ctx2d.fillStyle = '#1a1f2a';
-    ctx2d.fillRect(0, 0, w, (h/2)|0);
-    ctx2d.fillStyle = '#101013';
-    ctx2d.fillRect(0, (h/2)|0, w, (h/2)|0);
-
-    const fov = Math.PI / 3;
-    const rays = Math.min(960, w | 0);
-    const centerY = (h * 0.52);
-
-    for (let x = 0; x < rays; x++) {
-      const u = (x / rays) * 2 - 1;
-      const a = player.a + u * (fov / 2);
-
-      let dist = castRay(player.x, player.y, a, 20);
-      dist *= Math.cos(u * (fov / 2));
-      dist = Math.max(0.001, dist);
-
-      const wallH = Math.min(h, (h / dist) * 0.85);
-      const y0 = (centerY - wallH / 2) | 0;
-      const y1 = (centerY + wallH / 2) | 0;
-
-      const shade = clamp(1.15 - dist * 0.08, 0.15, 1.0);
-      const c = (shade * 255) | 0;
-      ctx2d.fillStyle = `rgb(${(c*0.9)|0},${(c*0.95)|0},${c})`;
-      const colW = (w / rays);
-      ctx2d.fillRect((x * colW) | 0, y0, Math.ceil(colW), (y1 - y0) | 0);
-    }
-
-    const vis = bots
-      .filter(b => b.alive)
-      .map(b => {
-        const dx = b.x - player.x, dy = b.y - player.y;
-        const dist = Math.hypot(dx, dy);
-        const ang = Math.atan2(dy, dx) - player.a;
-        return { b, dist, ang };
-      })
-      .filter(o => o.dist > 0.2)
-      .sort((a,b) => b.dist - a.dist);
-
-    for (const o of vis) {
-      let ang = o.ang;
-      while (ang < -Math.PI) ang += Math.PI*2;
-      while (ang >  Math.PI) ang -= Math.PI*2;
-      if (Math.abs(ang) > (fov/2) + 0.2) continue;
-
-      const wallDist = castRay(player.x, player.y, player.a + ang, 20);
-      if (o.dist > wallDist + 0.05) continue;
-
-      const size = (h / o.dist) * 0.14;
-      const sx = (w * (0.5 + (ang / fov))) | 0;
-      const sy = (centerY - size * 0.65) | 0;
-
-      const hp = clamp(o.b.hp / 100, 0, 1);
-      const r = (220 * (1 - hp) + 60) | 0;
-      const g = (220 * hp + 30) | 0;
-      const b = 70;
-
-      ctx2d.fillStyle = `rgb(${r},${g},${b})`;
-      ctx2d.fillRect((sx - size/2)|0, sy, size|0, (size*1.1)|0);
-
-      ctx2d.fillStyle = 'rgba(0,0,0,.6)';
-      ctx2d.fillRect((sx - size/2)|0, (sy - 10)|0, size|0, 6);
-      ctx2d.fillStyle = 'rgba(255,255,255,.9)';
-      ctx2d.fillRect((sx - size/2)|0, (sy - 10)|0, (size*hp)|0, 6);
-    }
-
-    const grd = ctx2d.createRadialGradient(w/2, h/2, Math.min(w,h)*0.15, w/2, h/2, Math.min(w,h)*0.75);
-    grd.addColorStop(0, 'rgba(0,0,0,0)');
-    grd.addColorStop(1, 'rgba(0,0,0,0.35)');
-    ctx2d.fillStyle = grd;
-    ctx2d.fillRect(0, 0, w, h);
-  }
-
-  // ------------------------------------------------------------
-  // Game loop
-  // ------------------------------------------------------------
-  let last = performance.now();
-  let fpsAcc = 0, fpsN = 0, fpsLast = performance.now();
-
-  function tick(now) {
-    const dt = Math.min(0.033, (now - last) / 1000);
-    last = now;
-
-    if (running) {
-      if (!player.alive) {
-        player.respawnT -= dt;
-        if (player.respawnT <= 0) respawnPlayer();
+      // Animera muzzle flash
+      if (muzzleFlashLife > 0) {
+        muzzleFlashLife = Math.max(0, muzzleFlashLife - dt * 24);
+        muzzleLight.intensity = muzzleFlashLife * 4;
+        muzzleSpriteMat.opacity = muzzleFlashLife;
+        const s = 0.1 + muzzleFlashLife * 0.22;
+        muzzleSprite.scale.set(s, s, 1);
       }
 
-      const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 2.8 : 2.15;
-      let fwd = 0, str = 0;
-      if (keys.has('KeyW')) fwd += 1;
-      if (keys.has('KeyS')) fwd -= 1;
-      if (keys.has('KeyA')) str -= 1;
-      if (keys.has('KeyD')) str += 1;
+      // Synka inga kameror – vapnet följer automatiskt som barn till camera
 
-      if (player.alive) {
-        const ax = Math.cos(player.a), ay = Math.sin(player.a);
-        const px = -ay, py = ax;
-        const nx = player.x + (ax * fwd + px * str) * speed * dt;
-        const ny = player.y + (ay * fwd + py * str) * speed * dt;
-        tryMove(player, nx, ny);
-      }
+      // Enkel render – vapnet ingår i scenen via camera.add()
+      renderer.render(scene, camera);
 
-      updateBots(dt);
-      render();
-      document.getElementById('hp').textContent = 'HP: ' + (player.hp | 0);
+      requestAnimationFrame(tick);
     }
-
-    fpsAcc += 1;
-    fpsN += (1 / Math.max(1e-6, dt));
-    if (now - fpsLast > 350) {
-      document.getElementById('fps').textContent = ((fpsN / fpsAcc) | 0) + ' fps';
-      fpsAcc = 0; fpsN = 0; fpsLast = now;
-    }
-
-    requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-
-  // ------------------------------------------------------------
-  // UI: Join / Close
-  // ------------------------------------------------------------
-  const overlay = document.getElementById('overlay');
-  const joinBtn = document.getElementById('joinBtn');
-  const closeBtn = document.getElementById('closeBtn');
-  const statusEl = document.getElementById('status');
-  const wsInput = document.getElementById('ws');
-
-  wsInput.value = defaultWsUrl();
-  function setStatus(s) { statusEl.textContent = 'Status: ' + s; }
-
-  joinBtn.addEventListener('click', () => {
-    ensureAudio();
-    if (audioCtx.state === 'suspended') audioCtx.resume?.();
-
-    overlay.style.display = 'none';
-    running = true;
-    setStatus('kör');
-    lockPointer();
-
-    const url = (wsInput.value || '').trim();
-    if (url) connectWs(url);
-  });
-
-  closeBtn.addEventListener('click', () => {
-    overlay.style.display = 'none';
-    running = true;
-    setStatus('kör');
-    lockPointer();
-  });
-
-  canvas.addEventListener('click', () => {
-    if (!pointerLocked && running) lockPointer();
-  });
-})();
-</script>
+    tick();
+  </script>
 </body>
 </html>
