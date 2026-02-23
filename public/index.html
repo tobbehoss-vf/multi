@@ -361,22 +361,42 @@
     wKeyLight.position.set(0.3, 0.2, -0.1);
     camera.add(wKeyLight);
 
-    // ── MUZZLE FLASH – PointLight + sprite vid pipspetsen ───────────────────
-    // Pipspetsen sitter på z = -0.55 - 0.55 = -1.1 i weaponGroup-space
-    const muzzleLight = new THREE.PointLight(0xff8800, 0, 6); // intensity=0 tills skott
+    // ── MUZZLE FLASH – PointLight + canvas-textur starburst ─────────────────
+    const muzzleLight = new THREE.PointLight(0xff8800, 0, 4);
     muzzleLight.position.set(0, 0.005, -1.1);
     weaponGroup.add(muzzleLight);
 
-    // Muzzle flash sprite (gul starburst)
+    // Bygg starburst-textur i canvas
+    const muzzleCanvas = document.createElement('canvas');
+    muzzleCanvas.width = muzzleCanvas.height = 128;
+    const mCtx = muzzleCanvas.getContext('2d');
+    const grad = mCtx.createRadialGradient(64,64,2, 64,64,64);
+    grad.addColorStop(0,   'rgba(255,255,220,1)');
+    grad.addColorStop(0.08,'rgba(255,200,50,1)');
+    grad.addColorStop(0.25,'rgba(255,120,0,0.8)');
+    grad.addColorStop(1,   'rgba(255,60,0,0)');
+    mCtx.fillStyle = grad;
+    mCtx.fillRect(0,0,128,128);
+    // Stjärnstrålar
+    mCtx.strokeStyle = 'rgba(255,220,80,0.9)';
+    for(let a=0; a<8; a++){
+      const ang = a * Math.PI/4;
+      mCtx.lineWidth = 3 - a%2*1.5;
+      mCtx.beginPath();
+      mCtx.moveTo(64,64);
+      mCtx.lineTo(64 + Math.cos(ang)*62, 64 + Math.sin(ang)*62);
+      mCtx.stroke();
+    }
+    const muzzleTex = new THREE.CanvasTexture(muzzleCanvas);
     const muzzleSpriteMat = new THREE.SpriteMaterial({
-      color: 0xffcc44,
+      map: muzzleTex,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
     const muzzleSprite = new THREE.Sprite(muzzleSpriteMat);
-    muzzleSprite.scale.set(0.25, 0.25, 1);
+    muzzleSprite.scale.set(0.15, 0.15, 1);
     muzzleSprite.position.set(0, 0.005, -1.1);
     weaponGroup.add(muzzleSprite);
 
@@ -389,28 +409,65 @@
     controls.addEventListener("lock", () => { weaponGroup.visible = true; });
     controls.addEventListener("unlock", () => { weaponGroup.visible = false; });
 
-    // ── BULLET TRACERS (visuella skott i 3D) ────────────────────────────────
+    // ── BULLET TRACERS ───────────────────────────────────────────────────────
+    // Bygg tracer-textur (gul glödande stav)
+    const tracerCanvas = document.createElement('canvas');
+    tracerCanvas.width = 32; tracerCanvas.height = 8;
+    const tCtx = tracerCanvas.getContext('2d');
+    const tGrad = tCtx.createLinearGradient(0,0,32,0);
+    tGrad.addColorStop(0,   'rgba(255,255,200,0)');
+    tGrad.addColorStop(0.3, 'rgba(255,220,50,1)');
+    tGrad.addColorStop(0.7, 'rgba(255,200,50,1)');
+    tGrad.addColorStop(1,   'rgba(255,255,200,0)');
+    tCtx.fillStyle = tGrad;
+    tCtx.fillRect(0,0,32,8);
+    const tracerTex = new THREE.CanvasTexture(tracerCanvas);
+
     const tracers = [];
 
     function spawnTracer(from, dir){
-      const geo = new THREE.CylinderGeometry(0.04, 0.04, 0.8, 4);
+      // Kula: synlig cylinder + glödande sprite
+      const length = 1.8;
+      const geo = new THREE.CylinderGeometry(0.04, 0.04, length, 6);
       geo.rotateX(Math.PI / 2);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xffee44 });
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffee66 });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.copy(from);
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), dir.clone().normalize());
-      scene.add(mesh);
-      tracers.push({ mesh, dir: dir.clone().normalize(), life: 0.12, speed: 80 });
+
+      // Glow-sprite runt kulan
+      const glowMat = new THREE.SpriteMaterial({
+        map: tracerTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 1,
+      });
+      const glow = new THREE.Sprite(glowMat);
+      glow.scale.set(length * 2.5, 0.25, 1);
+
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.add(glow);
+      group.position.copy(from);
+
+      // Peka i skjutriktningen
+      const up = Math.abs(dir.y) < 0.99 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
+      group.quaternion.setFromRotationMatrix(
+        new THREE.Matrix4().lookAt(new THREE.Vector3(), dir, up)
+      );
+      // lookAt pekar +Z mot dir, men cylinder pekar +Y → rotera
+      group.rotateX(Math.PI / 2);
+
+      scene.add(group);
+      tracers.push({ group, dir: dir.clone().normalize(), life: 0.22, speed: 120 });
     }
 
     function updateTracers(dt){
       for(let i = tracers.length-1; i >= 0; i--){
         const t = tracers[i];
-        t.mesh.position.addScaledVector(t.dir, t.speed * dt);
+        t.group.position.addScaledVector(t.dir, t.speed * dt);
         t.life -= dt;
         if(t.life <= 0){
-          scene.remove(t.mesh);
-          t.mesh.geometry.dispose();
+          scene.remove(t.group);
           tracers.splice(i, 1);
         }
       }
@@ -420,13 +477,20 @@
     const localRaycaster = new THREE.Raycaster();
 
     function localShootRaycast(){
-      // Skjut en ray från kameran rakt framåt
       localRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-      const targets = [...others.values()].map(o => o.sprite);
+      const targets = [...others.values()].flatMap(o => {
+        const meshes = [];
+        o.humanoid.traverse(m => { if(m.isMesh) meshes.push(m); });
+        return meshes;
+      });
       const hits = localRaycaster.intersectObjects(targets);
       if(hits.length > 0){
-        const hitSprite = hits[0].object;
-        const hitOther = [...others.values()].find(o => o.sprite === hitSprite);
+        const hitMesh = hits[0].object;
+        const hitOther = [...others.values()].find(o => {
+          let found = false;
+          o.humanoid.traverse(m => { if(m === hitMesh) found = true; });
+          return found;
+        });
         if(hitOther) showToast(`TRÄFF på ${hitOther.last.name || "spelare"}!`);
       }
     }
@@ -442,22 +506,21 @@
     // =========================
     const cellSize = 4;
     const MAP = [
-      "########################",
-      "#..........#...........#",
-      "#..####....#....####...#",
-      "#..#..#.........#..#...#",
-      "#..####....##...####...#",
-      "#...........#..........#",
-      "#..####..#####..####...#",
-      "#.....#..#...#..#......#",
-      "###...#..#...#..#...####",
-      "#.....#..#####..#......#",
-      "#..........#...........#",
-      "#..####....#....####...#",
-      "#..#..#.........#..#...#",
-      "#..####....#....####...#",
-      "#..........#...........#",
-      "########################"
+      "####################",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "####################"
     ];
     const mapH = MAP.length;
     const mapW = MAP[0].length;
@@ -951,7 +1014,7 @@
     let shootCooldown = 0;
     addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
-      if (!connected || !controls.isLocked) return;
+      if (!controls.isLocked) return;
       if (shootCooldown > 0) return;
       if (player.ammo <= 0) { showToast("TOMT! (R = ladda om)"); return; }
 
@@ -1100,8 +1163,8 @@
 
       // Animera muzzle flash
       if (muzzleFlashLife > 0) {
-        muzzleFlashLife = Math.max(0, muzzleFlashLife - dt * 18);
-        muzzleLight.intensity = muzzleFlashLife * 6;
+        muzzleFlashLife = Math.max(0, muzzleFlashLife - dt * 24);
+        muzzleLight.intensity = muzzleFlashLife * 4;
         muzzleSpriteMat.opacity = muzzleFlashLife;
         const s = 0.1 + muzzleFlashLife * 0.22;
         muzzleSprite.scale.set(s, s, 1);
