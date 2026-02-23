@@ -129,7 +129,7 @@
         <input id="room" maxlength="16" value="lobby" />
         <button id="join">Join</button>
       </p>
-      <p><b>W</b>=framåt • <b>S</b>=bakåt • <b>A</b>=vänster • <b>D</b>=höger • <b>Mus</b>=sikta • <b>Klick</b>=skjut • <b>ESC</b>=meny</p>
+      <p><b>W/S/A/D</b> = rör dig • <b>Mus</b> = sikta • <b>Klick</b> = skjut • <b>Space</b> = hoppa • <b>C/Ctrl</b> = ducka • <b>R</b> = ladda om • <b>ESC</b> = meny</p>
       <p style="opacity:.78">Doom-känsla: hög fart + “slide”. (Inga hopp.)</p>
       <p id="status" style="opacity:.9"></p>
     </div>
@@ -164,9 +164,81 @@
     import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
     // =========================
-    // WebSocket URL (same origin)
+    // Ljud – Web Audio API
     // =========================
-    const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type){
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+
+      if (type === 'shoot') {
+        // Skottljud: kort brak + brus
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.18, audioCtx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          const t = i / audioCtx.sampleRate;
+          const env = Math.exp(-t * 28);
+          d[i] = (Math.random() * 2 - 1) * env * 0.9
+                + Math.sin(2 * Math.PI * 120 * t) * env * 0.4
+                + Math.sin(2 * Math.PI * 60 * t) * env * 0.3;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        const dist = audioCtx.createDynamicsCompressor();
+        src.connect(dist); dist.connect(audioCtx.destination);
+        src.start(now);
+      }
+
+      if (type === 'reload') {
+        // Laddljud: click-klack mekaniskt
+        [0, 0.12, 0.22, 0.42].forEach((delay, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.value = i % 2 === 0 ? 320 : 280;
+          gain.gain.setValueAtTime(0.18, now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.08);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(now + delay); osc.stop(now + delay + 0.1);
+        });
+        // Fjäder-whoosh
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          const t = i / audioCtx.sampleRate;
+          d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 12) * 0.12;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(now + 0.08);
+      }
+
+      if (type === 'jump') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.16);
+      }
+
+      if (type === 'land') {
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.03)) * 0.3;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(now);
+      }
+    }
 
     // =========================
     // Renderer (full resolution)
@@ -179,8 +251,8 @@
 
     const scene = new THREE.Scene();
     // Ljusare, mjuk dimma
-    scene.fog = new THREE.Fog(0x1a1820, 18, 120);
-    scene.background = new THREE.Color(0x1a1820);
+    scene.fog = new THREE.Fog(0x4488cc, 20, 140);
+    scene.background = new THREE.Color(0x4488cc); // blå himmel
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 200);
 
@@ -314,22 +386,8 @@
     let weaponBobT = 0;
     let weaponKick = 0;
 
-    // Vapenscen för separat djup-pass
-    const weaponScene = new THREE.Scene();
-    const weaponCamera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.01, 10);
-    // weaponCamera behöver inte röra sig – vapnet är relativt kameran i weaponScene
-    // Vi kopierar kamerans world-transform till weaponCamera varje frame
-    weaponScene.add(weaponCamera);
-    const weaponGroupCopy = weaponGroup.clone();
-    weaponGroupCopy.visible = true;
-    weaponScene.add(weaponGroupCopy);
-    weaponScene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    const wSceneLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    wSceneLight.position.set(1, 2, 2);
-    weaponScene.add(wSceneLight);
-
-    controls.addEventListener("lock", () => { weaponGroup.visible = true; weaponGroupCopy.visible = true; });
-    controls.addEventListener("unlock", () => { weaponGroup.visible = false; weaponGroupCopy.visible = false; });
+    controls.addEventListener("lock", () => { weaponGroup.visible = true; });
+    controls.addEventListener("unlock", () => { weaponGroup.visible = false; });
 
     // ── BULLET TRACERS (visuella skott i 3D) ────────────────────────────────
     const tracers = [];
@@ -378,7 +436,6 @@
     // =========================
     const wallMat  = new THREE.MeshLambertMaterial({ color: 0xcc8855 });
     const floorMat = new THREE.MeshLambertMaterial({ color: 0x444440 });
-    const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x333338, side: THREE.BackSide });
 
     // =========================
     // Level (tilemap)
@@ -416,10 +473,7 @@
     floor.position.set((mapW*cellSize)/2, 0, (mapH*cellSize)/2);
     scene.add(floor);
 
-    const ceil = new THREE.Mesh(floorGeo, ceilMat);
-    ceil.rotation.x = -Math.PI/2;
-    ceil.position.set((mapW*cellSize)/2, 6, (mapH*cellSize)/2);
-    scene.add(ceil);
+    // Inget tak – öppen arena
 
     // InstancedMesh för väggar (snabbare än enskilda meshar)
     const wallCount = MAP.reduce((n,row)=>n+[...row].filter(c=>c==='#').length, 0);
@@ -441,14 +495,10 @@
     wallInst.instanceMatrix.needsUpdate = true;
 
     // =========================
-    // Other players
+    // Other players – 3D humanoid meshes
     // =========================
     const others = new Map();
 
-    // =========================
-    // Other players – 3D humanoid meshes
-    // =========================
-   
     // Delade material för alla spelare
     const pSkin   = new THREE.MeshLambertMaterial({ color: 0xe8b880 });
     const pShirt  = new THREE.MeshLambertMaterial({ color: 0x2255aa });
@@ -562,14 +612,23 @@
     const FRICTION = 10.0;      // lower friction => more sliding
     const STRAFE_BIAS = 1.0;    // keep strafe same speed
 
+    const GRAVITY     = 22.0;
+    const JUMP_SPEED  = 7.0;
+    const EYE_STAND   = 1.7;
+    const EYE_CROUCH  = 0.75;
+    const CROUCH_SPEED= 8.0;
+
     const player = {
       id: null,
-      pos: new THREE.Vector3(cellSize*2, 1.7, cellSize*2),
+      pos: new THREE.Vector3(cellSize*2, EYE_STAND, cellSize*2),
       vel: new THREE.Vector3(),
       radius: 0.55,
       hp: 100,
       ammo: 50,
-      room: "lobby"
+      room: "lobby",
+      onGround: true,
+      eyeY: EYE_STAND,      // aktuell ögonhöjd (smoothad)
+      crouching: false,
     };
     controls.getObject().position.copy(player.pos);
 
@@ -641,45 +700,80 @@
       if (keys.has("KeyA") || keys.has("ArrowLeft"))  s -= 1;
       if (keys.has("KeyD") || keys.has("ArrowRight")) s += 1;
 
-      // wish direction in world space
+      // Ducka med C eller Ctrl
+      const wantCrouch = keys.has("KeyC") || keys.has("ControlLeft") || keys.has("ControlRight");
+      player.crouching = wantCrouch;
+
+      // Hoppa med Space
+      if ((keys.has("Space")) && player.onGround) {
+        player.vel.y = JUMP_SPEED;
+        player.onGround = false;
+        playSound('jump');
+      }
+
+      // XZ-rörelse
       const wish = new THREE.Vector3()
         .addScaledVector(forward, f)
         .addScaledVector(right, s * STRAFE_BIAS);
 
-      let wishSpeed = MOVE_SPEED;
-      if (wish.lengthSq() > 0) {
-        wish.normalize();
-      } else {
-        wishSpeed = 0;
-      }
+      const speed = player.crouching ? MOVE_SPEED * 0.5 : MOVE_SPEED;
+      let wishSpeed = wish.lengthSq() > 0 ? (wish.normalize(), speed) : 0;
 
-      // friction then acceleration (classic-ish)
       const fr = applyFriction(player.vel.x, player.vel.z, FRICTION, dt);
       player.vel.x = fr.vx; player.vel.z = fr.vz;
-
       if (wishSpeed > 0) {
         const acc = accelerate(player.vel.x, player.vel.z, wish.x, wish.z, wishSpeed, ACCEL_GROUND, dt);
         player.vel.x = acc.vx; player.vel.z = acc.vz;
       }
 
-      // integrate + collide
-      const newPos = player.pos.clone().addScaledVector(player.vel, dt);
-      newPos.y = 1.7;
-      collideAndSlide(newPos);
+      // Gravitation
+      if (!player.onGround) player.vel.y -= GRAVITY * dt;
 
-      controls.getObject().position.copy(player.pos);
+      // Integrera position
+      const floorY = 0;
+      player.pos.x += player.vel.x * dt;
+      player.pos.z += player.vel.z * dt;
+      player.pos.y += player.vel.y * dt;
 
-      // 3D weapon bob – uppdatera bara position på weaponGroup (som är barn till camera)
+      // Mark-kollision
+      const wasAbove = !player.onGround;
+      if (player.pos.y <= floorY) {
+        if (wasAbove && player.vel.y < -3) playSound('land');
+        player.pos.y = floorY;
+        player.vel.y = 0;
+        player.onGround = true;
+      } else {
+        player.onGround = false;
+      }
+
+      // Vägg-kollision
+      const r = player.radius;
+      const tryX = new THREE.Vector3(player.pos.x, player.pos.y, player.pos.z);
+      if (circleHitsWall(player.pos.x, player.pos.z, r)){
+        player.pos.x -= player.vel.x * dt;
+        player.vel.x = 0;
+      }
+      if (circleHitsWall(player.pos.x, player.pos.z, r)){
+        player.pos.z -= player.vel.z * dt;
+        player.vel.z = 0;
+      }
+
+      // Smooth ögonhöjd (ducka/resa sig)
+      const targetEye = player.crouching ? EYE_CROUCH : EYE_STAND;
+      player.eyeY += (targetEye - player.eyeY) * Math.min(1, CROUCH_SPEED * dt);
+
+      // Sätt kameran
+      controls.getObject().position.set(player.pos.x, player.pos.y + player.eyeY, player.pos.z);
+
+      // 3D weapon bob
       const speedNow = Math.hypot(player.vel.x, player.vel.z);
       weaponBobT += speedNow * 0.004;
       const bobY = Math.sin(weaponBobT * 6) * Math.min(speedNow, 10) * 0.003;
       const bobX = Math.sin(weaponBobT * 3) * Math.min(speedNow, 10) * 0.001;
       weaponKick = Math.max(0, weaponKick - 0.005);
-      const wp = new THREE.Vector3(0.22 + bobX, -0.20 + bobY + weaponKick, -0.30);
+      const duckOffset = player.crouching ? -0.05 : 0;
+      const wp = new THREE.Vector3(0.22 + bobX, -0.20 + bobY + weaponKick + duckOffset, -0.30);
       weaponGroup.position.copy(wp);
-      // Synka kopian i weaponScene
-      weaponGroupCopy.position.copy(wp);
-      weaponGroupCopy.rotation.copy(weaponGroup.rotation);
     }
 
     // =========================
@@ -863,6 +957,7 @@
 
       player.ammo--;
       shootCooldown = 0.12;
+      playSound('shoot');
       triggerMuzzleFlash();
 
       // Spawn tracer från kameran framåt
@@ -883,6 +978,7 @@
     addEventListener("keydown", e => {
       if (e.code === "KeyR" && controls.isLocked) {
         player.ammo = 50;
+        playSound('reload');
         showToast("LADDAT!");
         updateHUD();
       }
@@ -973,10 +1069,6 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      if (weaponCamera) {
-        weaponCamera.aspect = camera.aspect;
-        weaponCamera.updateProjectionMatrix();
-      }
     }
     addEventListener("resize", handleResize);
 
