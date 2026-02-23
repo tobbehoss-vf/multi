@@ -84,6 +84,17 @@ const DAMAGE_BY_WEAPON = {
   smg: 20,
 };
 
+// Fire rate (server authoritative) — anti-fusk
+// (sekunder mellan skott)
+const FIRE_INTERVAL_BY_WEAPON = {
+  shotgun: 0.70,
+  // SMG: ändra här om du vill (t.ex. 3 skott/sek => 1/3 ≈ 0.333)
+  smg: 0.10, // 10 skott/sek
+};
+
+// Max queued shots per player (för att undvika spam)
+const MAX_PENDING_SHOTS = 6;
+
 // ---- Level ----
 const CELL = 4;
 const MAP = [
@@ -141,6 +152,7 @@ const rooms = new Map();
 
 function rid() { return crypto.randomBytes(4).toString("hex"); }
 function nowMs() { return Date.now(); }
+function nowSec() { return Date.now() / 1000; }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function expSmoothingFactor(k, dt) { return 1 - Math.exp(-k * dt); }
@@ -248,6 +260,11 @@ function rayHitsPlayer(shooter, target, dirX, dirZ, maxDist = 60) {
   return t;
 }
 
+function normalizeWeapon(w) {
+  const s = String(w || "");
+  return (s === "smg" || s === "shotgun") ? s : "shotgun";
+}
+
 // ---- WebSocket ----
 wss.on("connection", (ws) => {
   let player = null;
@@ -271,10 +288,14 @@ wss.on("connection", (ws) => {
         lastHeardMs: nowMs(),
         vx: 0, vz: 0,
         inX: 0, inZ: 0,
-        wantShoot: 0,
+
+        // NEW: shot queue + rate limit
+        pendingShots: 0,
+        nextShotAt: 0,        // seconds (server time)
         shootYaw: 0,
         shootPitch: 0,
         shootWeapon: "shotgun",
+
         weapon: "shotgun",
         kills: 0,
         deaths: 0,
@@ -317,20 +338,26 @@ wss.on("connection", (ws) => {
     }
 
     if (msg.t === "weapon") {
-      const w = String(msg.weapon || "shotgun");
-      if (w === "shotgun" || w === "smg") player.weapon = w;
+      const w = normalizeWeapon(msg.weapon || "shotgun");
+      player.weapon = w;
+
       const room = getOrCreateRoom(player.room);
       broadcast(room, { t:"weapon", id: player.id, weapon: player.weapon, ts: nowMs() });
       return;
     }
 
     if (msg.t === "shoot") {
-      player.wantShoot  = 1;
+      // Enqueue shot (droppa inte skott mellan ticks)
+      if (player.hp <= 0) return;
+
       player.shootYaw   = Number(msg.yaw)   || player.yaw;
       player.shootPitch = clamp(Number(msg.pitch) || player.pitch, -1.4, 1.4);
 
-      const w = String(msg.weapon || player.weapon || "shotgun");
-      player.shootWeapon = (w === "smg" || w === "shotgun") ? w : "shotgun";
+      // Ta weapon från msg om den finns, annars spelarens val
+      player.shootWeapon = normalizeWeapon(msg.weapon || player.weapon || "shotgun");
+
+      // Anti-spam: cap queue
+      player.pendingShots = Math.min(MAX_PENDING_SHOTS, player.pendingShots + 1);
       return;
     }
 
@@ -358,6 +385,95 @@ wss.on("connection", (ws) => {
     if (room.players.size === 0) rooms.delete(room.name);
   });
 });
+
+// ---- One authoritative shot resolve ----
+function resolveOneShot(room, shooter) {
+  const weapon = normalizeWeapon(shooter.shootWeapon || shooter.weapon || "shotgun");
+  const dmg = DAMAGE_BY_WEAPON[weapon] ?? DAMAGE_BY_WEAPON.shotgun;
+
+  const dir = yawPitchToDir(shooter.shootYaw, shooter.shootPitch);
+  let bestId = null, bestT = Infinity;
+
+  // hitscan uses XZ for collision; pitch is mostly visual
+  for (const target of room.players.values()) {
+    if (target.id === shooter.id || target.hp <= 0) continue;
+    const t = rayHitsPlayer(shooter, target, dir.x, dir.z, 60);
+    if (t !== null && t < bestT) { bestT = t; bestId = target.id; }
+  }
+
+  if (bestId) {
+    const victim = room.players.get(bestId);
+    if (victim) {
+      victim.hp -= dmg;
+
+      if (victim.hp <= 0) {
+        victim.hp = 0;
+
+        shooter.kills = (shooter.kills || 0) + 1;
+        victim.deaths = (victim.deaths || 0) + 1;
+
+        const key = `${shooter.id}|${victim.id}`;
+        room.pairKills.set(key, (room.pairKills.get(key) || 0) + 1);
+        const pairCount = room.pairKills.get(key);
+
+        broadcast(room, {
+          t: "kill",
+          killer: shooter.id,
+          victim: victim.id,
+          killerName: shooter.name,
+          victimName: victim.name,
+          pairCount,
+          scoreboard: buildScoreboard(room),
+          pairKills: buildPairKills(room),
+          ts: nowMs()
+        });
+
+        setTimeout(() => {
+          if (!room.players.has(victim.id)) return;
+          const sp = spawnPoint(room);
+          victim.x = sp.x; victim.z = sp.z;
+          victim.vx = 0; victim.vz = 0;
+          victim.hp = MAX_HP;
+
+          broadcast(room, {
+            t: "respawn",
+            id: victim.id,
+            x: victim.x,
+            z: victim.z,
+            hp: victim.hp,
+            scoreboard: buildScoreboard(room),
+            pairKills: buildPairKills(room),
+            ts: nowMs()
+          });
+        }, RESPAWN_MS);
+      }
+
+      broadcast(room, {
+        t: "hit",
+        from: shooter.id,
+        to: victim.id,
+        hp: victim.hp,
+        weapon,
+        dmg,
+        scoreboard: buildScoreboard(room),
+        pairKills: buildPairKills(room),
+        ts: nowMs()
+      });
+    }
+  }
+
+  // Broadcast visual shot for tracers (yaw + pitch!)
+  broadcast(room, {
+    t: "shot",
+    id: shooter.id,
+    yaw: shooter.shootYaw,
+    pitch: shooter.shootPitch,
+    weapon,
+    scoreboard: buildScoreboard(room),
+    pairKills: buildPairKills(room),
+    ts: nowMs()
+  });
+}
 
 // ---- Game tick ----
 setInterval(() => {
@@ -390,103 +506,25 @@ setInterval(() => {
       collideAndSlide(p, clamp(p.x + p.vx * DT, minX, maxX), clamp(p.z + p.vz * DT, minZ, maxZ));
     }
 
-    // Shooting
+    // Shooting (queue + rate limit)
+    const tNow = nowSec();
     for (const shooter of room.players.values()) {
-      if (!shooter.wantShoot) continue;
-      shooter.wantShoot = 0;
-      if (shooter.hp <= 0) continue;
+      if (shooter.hp <= 0) { shooter.pendingShots = 0; continue; }
+      if (shooter.pendingShots <= 0) continue;
 
-      const weapon = shooter.shootWeapon || shooter.weapon || "shotgun";
-      const dmg = DAMAGE_BY_WEAPON[weapon] ?? DAMAGE_BY_WEAPON.shotgun;
+      const w = normalizeWeapon(shooter.shootWeapon || shooter.weapon || "shotgun");
+      const interval = FIRE_INTERVAL_BY_WEAPON[w] ?? FIRE_INTERVAL_BY_WEAPON.shotgun;
 
-      const dir = yawPitchToDir(shooter.shootYaw, shooter.shootPitch);
-      let bestId = null, bestT = Infinity;
-
-      // hitscan uses XZ for collision; pitch is only for visuals/tracers for now
-      for (const target of room.players.values()) {
-        if (target.id === shooter.id || target.hp <= 0) continue;
-        const t = rayHitsPlayer(shooter, target, dir.x, dir.z, 60);
-        if (t !== null && t < bestT) { bestT = t; bestId = target.id; }
+      // Process as many as allowed this tick, but only if interval permits
+      let safety = 6; // extra guard
+      while (shooter.pendingShots > 0 && tNow >= shooter.nextShotAt && safety-- > 0) {
+        shooter.pendingShots--;
+        shooter.nextShotAt = tNow + interval;
+        resolveOneShot(room, shooter);
       }
-
-      let killed = false;
-      let victimName = null;
-
-      if (bestId) {
-        const victim = room.players.get(bestId);
-        if (victim) {
-          victim.hp -= dmg;
-
-          if (victim.hp <= 0) {
-            victim.hp = 0;
-            killed = true;
-            victimName = victim.name;
-
-            shooter.kills = (shooter.kills || 0) + 1;
-            victim.deaths = (victim.deaths || 0) + 1;
-
-            const key = `${shooter.id}|${victim.id}`;
-            room.pairKills.set(key, (room.pairKills.get(key) || 0) + 1);
-            const pairCount = room.pairKills.get(key);
-
-            broadcast(room, {
-              t: "kill",
-              killer: shooter.id,
-              victim: victim.id,
-              killerName: shooter.name,
-              victimName: victim.name,
-              pairCount,
-              scoreboard: buildScoreboard(room),
-              pairKills: buildPairKills(room),
-              ts: nowMs()
-            });
-
-            setTimeout(() => {
-              if (!room.players.has(victim.id)) return;
-              const sp = spawnPoint(room);
-              victim.x = sp.x; victim.z = sp.z;
-              victim.vx = 0; victim.vz = 0;
-              victim.hp = MAX_HP;
-              broadcast(room, {
-                t: "respawn",
-                id: victim.id,
-                x: victim.x,
-                z: victim.z,
-                hp: victim.hp,
-                scoreboard: buildScoreboard(room),
-                pairKills: buildPairKills(room),
-                ts: nowMs()
-              });
-            }, RESPAWN_MS);
-          }
-
-          broadcast(room, {
-            t: "hit",
-            from: shooter.id,
-            to: victim.id,
-            hp: victim.hp,
-            weapon,
-            dmg,
-            scoreboard: buildScoreboard(room),
-            pairKills: buildPairKills(room),
-            ts: nowMs()
-          });
-        }
-      }
-
-      broadcast(room, {
-        t: "shot",
-        id: shooter.id,
-        yaw: shooter.shootYaw,
-        pitch: shooter.shootPitch,
-        weapon,
-        scoreboard: buildScoreboard(room),
-        pairKills: buildPairKills(room),
-        ts: nowMs()
-      });
     }
 
-    // State snapshot (players + weapon)
+    // State snapshot
     broadcast(room, {
       t: "state",
       ts: nowMs(),
