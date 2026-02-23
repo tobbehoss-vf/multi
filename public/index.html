@@ -427,8 +427,8 @@
 
     function spawnTracer(from, dir){
       // Kula: synlig cylinder + glödande sprite
-      const length = 1.8;
-      const geo = new THREE.CylinderGeometry(0.04, 0.04, length, 6);
+      const length = 1.2;
+      const geo = new THREE.CylinderGeometry(0.02, 0.02, length, 6);
       geo.rotateX(Math.PI / 2);
       const mat = new THREE.MeshBasicMaterial({ color: 0xffee66 });
       const mesh = new THREE.Mesh(geo, mat);
@@ -442,7 +442,7 @@
         opacity: 1,
       });
       const glow = new THREE.Sprite(glowMat);
-      glow.scale.set(length * 2.5, 0.25, 1);
+      glow.scale.set(length * 1.5, 0.15, 1);
 
       const group = new THREE.Group();
       group.add(mesh);
