@@ -1,55 +1,652 @@
-if (type === 'shoot') {
-  // Shotgun: crack (väldigt kort) + blast (bandkänsla) + thump (pitch-drop) + softclip
-  const sr = audioCtx.sampleRate;
-  const dur = 0.22;
-  const buf = audioCtx.createBuffer(1, Math.floor(sr * dur), sr);
-  const d = buf.getChannelData(0);
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Browser Shooter (Single-file)</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #hud { position: fixed; left: 0; top: 0; right: 0; padding: 10px 12px; color: #fff; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+    #hud .row { display: flex; gap: 14px; align-items: center; justify-content: space-between; }
+    #hud .left { display: flex; gap: 14px; align-items: center; }
+    #hud .badge { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15); padding: 6px 10px; border-radius: 10px; }
+    #overlay {
+      position: fixed; inset: 0; display: grid; place-items: center;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,.75), rgba(0,0,0,.92));
+      color: #fff; z-index: 10;
+    }
+    #panel {
+      width: min(560px, calc(100vw - 32px));
+      background: rgba(20,20,20,.78);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+      padding: 18px;
+    }
+    #panel h1 { margin: 0 0 6px; font-size: 18px; }
+    #panel p { margin: 0 0 14px; color: rgba(255,255,255,.85); line-height: 1.35; font-size: 13px; }
+    #panel .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    #panel label { font-size: 12px; color: rgba(255,255,255,.85); display: block; margin-bottom: 6px; }
+    #panel input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.15);
+      background: rgba(0,0,0,.35);
+      color: #fff;
+      outline: none;
+    }
+    #panel .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    #panel button {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    #panel button.primary { background: rgba(255,255,255,.16); }
+    #panel button:active { transform: translateY(1px); }
+    #panel .small { font-size: 12px; opacity: .85; margin-top: 10px; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #crosshair {
+      position: fixed; left: 50%; top: 50%;
+      width: 18px; height: 18px; transform: translate(-50%,-50%);
+      pointer-events: none; z-index: 2;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,.7));
+    }
+    #crosshair:before, #crosshair:after {
+      content:""; position:absolute; left:50%; top:50%; background: rgba(255,255,255,.9);
+      transform: translate(-50%,-50%);
+    }
+    #crosshair:before { width: 16px; height: 2px; border-radius: 2px; }
+    #crosshair:after { width: 2px; height: 16px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <div id="panel">
+      <h1>Join</h1>
+      <p>
+        Klicka <b>Join</b> för att starta ljudet och låsa musen. (WebAudio kräver user-gesture.)
+        <br/>Kontroller: <b>WASD</b>, <b>mus</b> för att sikta, <b>vänsterklick</b> för shotgun.
+      </p>
+      <div class="grid">
+        <div>
+          <label for="name">Namn</label>
+          <input id="name" value="Player" maxlength="16" />
+        </div>
+        <div>
+          <label for="ws">WebSocket URL (valfritt)</label>
+          <input id="ws" placeholder="(auto)" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="joinBtn" class="primary">Join</button>
+        <button id="closeBtn">Close</button>
+      </div>
+      <div class="small" id="status">Status: inte startad</div>
+    </div>
+  </div>
 
-  // Parametrar (små ändringar här gör stor skillnad)
-  const drive = 3.2;         // mer = mer "punch"
-  const crackHz = 2600;      // 2–4 kHz brukar funka
-  const blastDecay = 70;     // kort blast
-  const bodyDecay  = 22;     // lite längre body
-  const crackDecay = 1400;   // superkort transient
+  <div id="hud">
+    <div class="row">
+      <div class="left">
+        <div class="badge" id="hp">HP: 100</div>
+        <div class="badge" id="ammo">SHOTGUN</div>
+        <div class="badge" id="net">WS: off</div>
+      </div>
+      <div class="badge" id="fps">0 fps</div>
+    </div>
+  </div>
 
-  // Enkel lowpass-state för att få "boom" ur brus utan filter-noder
-  let lp = 0;
-  const lpAlpha = 0.10;      // lägre = mörkare/boomigare blast
+  <div id="crosshair"></div>
+  <canvas id="c"></canvas>
 
-  // För pitch-drop behöver vi fas-ackumulation (sin(2π f(t) t) blir lätt "fel" när f ändras)
-  let phase = 0;
+<script>
+(() => {
+  // ------------------------------------------------------------
+  // Canvas / render setup
+  // ------------------------------------------------------------
+  const canvas = document.getElementById('c');
+  const ctx2d = canvas.getContext('2d', { alpha: false });
 
-  for (let i = 0; i < d.length; i++) {
-    const t = i / sr;
+  function resize() {
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    ctx2d.imageSmoothingEnabled = false;
+  }
+  addEventListener('resize', resize);
+  resize();
 
-    // Envelopes
-    const envBlast = Math.exp(-t * blastDecay);
-    const envBody  = Math.exp(-t * bodyDecay);
-    const envCrack = Math.exp(-t * crackDecay);
+  // ------------------------------------------------------------
+  // Simple raycaster world (grid)
+  // ------------------------------------------------------------
+  const MAP_W = 16, MAP_H = 16;
+  const map = [
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,1,0,1,1,1,1,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+  ];
 
-    // 1) Crack: kort bright komponent + lite brus
-    const crack =
-      (Math.sin(2 * Math.PI * crackHz * t) * 0.65 + (Math.random() * 2 - 1) * 0.35) * envCrack;
-
-    // 2) Blast: brus som "formas" (mörk boom + lite bite)
-    const n = (Math.random() * 2 - 1);
-    lp = lp + lpAlpha * (n - lp);              // lågpassad komponent (boom)
-    const blast = (n * 0.55 + lp * 0.85) * envBlast;
-
-    // 3) Thump/body: pitch drop 130 -> 70 Hz, med fas-ackumulation
-    const f = 70 + (130 - 70) * Math.exp(-t * 45);
-    phase += (2 * Math.PI * f) / sr;
-    const body = Math.sin(phase) * envBody;
-
-    // Mix: shotgun = mer blast+body än pistol
-    let s = crack * 0.95 + blast * 1.10 + body * 0.80;
-
-    // Soft clip (saturation)
-    s = Math.tanh(s * drive);
-
-    // Slutlig nivå
-    d[i] = s * 0.9;
+  function cell(x, y) {
+    const ix = x | 0, iy = y | 0;
+    if (ix < 0 || iy < 0 || ix >= MAP_W || iy >= MAP_H) return 1;
+    return map[iy * MAP_W + ix] | 0;
   }
 
-  // OBS: Jag antar att du efter detta använder din befintliga uppspelningskod (source/gain/start)
-}
+  // ------------------------------------------------------------
+  // Player / Entities
+  // ------------------------------------------------------------
+  const player = { x: 3.5, y: 3.5, a: 0, hp: 100, alive: true, respawnT: 0 };
+  const ENT_RADIUS = 0.18;
+  const bots = [];
+  const MAX_BOTS = 6;
+
+  function dist2(ax, ay, bx, by) {
+    const dx = ax - bx, dy = ay - by;
+    return dx*dx + dy*dy;
+  }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function spawnBot() {
+    for (let tries = 0; tries < 200; tries++) {
+      const x = 1.5 + Math.random() * (MAP_W - 3);
+      const y = 1.5 + Math.random() * (MAP_H - 3);
+      if (cell(x, y) === 0 && dist2(x, y, player.x, player.y) > 9) {
+        bots.push({ x, y, hp: 100, alive: true, respawnT: 0 });
+        return;
+      }
+    }
+  }
+  for (let i = 0; i < MAX_BOTS; i++) spawnBot();
+
+  // ------------------------------------------------------------
+  // Input
+  // ------------------------------------------------------------
+  const keys = new Set();
+  addEventListener('keydown', (e) => { keys.add(e.code); if (e.code === 'Escape') unlockPointer(); });
+  addEventListener('keyup', (e) => keys.delete(e.code));
+
+  let pointerLocked = false;
+  function lockPointer() { canvas.requestPointerLock?.(); }
+  function unlockPointer() { document.exitPointerLock?.(); }
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = (document.pointerLockElement === canvas);
+  });
+
+  addEventListener('mousemove', (e) => {
+    if (!pointerLocked) return;
+    player.a += (e.movementX || 0) * 0.0022;
+  });
+
+  // ------------------------------------------------------------
+  // Audio (WebAudio)
+  // ------------------------------------------------------------
+  let audioCtx = null;
+  let master = null;
+
+  function ensureAudio() {
+    if (audioCtx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    master = audioCtx.createGain();
+    master.gain.value = 0.85;
+    master.connect(audioCtx.destination);
+  }
+
+  function playBuffer(buf, gain = 1) {
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+
+    // Lätt kedja (du kan ta bort comp om du vill – men den hjälper “punch”)
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 90;
+
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 8500;
+
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 18;
+    comp.ratio.value = 6;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.08;
+
+    const g = audioCtx.createGain();
+    g.gain.value = gain;
+
+    src.connect(hp);
+    hp.connect(lp);
+    lp.connect(comp);
+    comp.connect(g);
+    g.connect(master);
+
+    src.start(audioCtx.currentTime + 0.001);
+  }
+
+  function sfx(type) {
+    ensureAudio();
+
+    if (type === 'shoot') {
+      // ---- SHOTGUN (enda ändringen du bad om): crack + blast + thump + softclip ----
+      const sr = audioCtx.sampleRate;
+      const dur = 0.22;
+      const buf = audioCtx.createBuffer(1, Math.floor(sr * dur), sr);
+      const d = buf.getChannelData(0);
+
+      const drive = 3.2;
+      const crackHz = 2600;
+      const blastDecay = 70;
+      const bodyDecay  = 22;
+      const crackDecay = 1400;
+
+      let lpState = 0;
+      const lpAlpha = 0.10;
+
+      let phase = 0;
+
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+
+        const envBlast = Math.exp(-t * blastDecay);
+        const envBody  = Math.exp(-t * bodyDecay);
+        const envCrack = Math.exp(-t * crackDecay);
+
+        // Crack
+        const crack =
+          (Math.sin(2 * Math.PI * crackHz * t) * 0.65 + (Math.random() * 2 - 1) * 0.35) * envCrack;
+
+        // Blast
+        const n = (Math.random() * 2 - 1);
+        lpState = lpState + lpAlpha * (n - lpState);
+        const blast = (n * 0.55 + lpState * 0.85) * envBlast;
+
+        // Thump with pitch drop (phase accumulation)
+        const f = 70 + (130 - 70) * Math.exp(-t * 45);
+        phase += (2 * Math.PI * f) / sr;
+        const body = Math.sin(phase) * envBody;
+
+        let s = crack * 0.95 + blast * 1.10 + body * 0.80;
+        s = Math.tanh(s * drive);
+        d[i] = s * 0.9;
+      }
+
+      playBuffer(buf, 0.95);
+      return;
+    }
+
+    if (type === 'hit') {
+      const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.08), audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / audioCtx.sampleRate;
+        const env = Math.exp(-t * 55);
+        d[i] = (Math.sin(2 * Math.PI * (180 + 300*t) * t) * 0.6 + (Math.random()*2-1)*0.2) * env;
+      }
+      playBuffer(buf, 0.5);
+      return;
+    }
+
+    if (type === 'dead') {
+      const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.25), audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / audioCtx.sampleRate;
+        const env = Math.exp(-t * 8);
+        d[i] = (Math.sin(2 * Math.PI * (120 - 70*t) * t) * 0.7 + (Math.random()*2-1)*0.15) * env;
+      }
+      playBuffer(buf, 0.6);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // WebSocket (optional)
+  // ------------------------------------------------------------
+  function defaultWsUrl() {
+    const proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
+    return proto + location.host;
+  }
+  let ws = null;
+
+  function connectWs(url) {
+    try {
+      ws = new WebSocket(url);
+      ws.onopen = () => setNet('on');
+      ws.onclose = () => setNet('off');
+      ws.onerror = () => setNet('off');
+      ws.onmessage = () => {};
+      setNet('…');
+    } catch (_) {
+      setNet('off');
+    }
+  }
+
+  function setNet(v) {
+    document.getElementById('net').textContent = 'WS: ' + v;
+  }
+
+  // ------------------------------------------------------------
+  // Shooting / damage / respawn rules
+  // ------------------------------------------------------------
+  const SHOT_DMG = 25;
+  const MAX_HP = 100;
+
+  const PELLETS = 8;
+  const SPREAD = 0.06;
+
+  let running = false;
+
+  function shoot() {
+    if (!running) return;
+    if (!player.alive) return;
+
+    sfx('shoot');
+
+    for (let p = 0; p < PELLETS; p++) {
+      const a = player.a + (Math.random() * 2 - 1) * SPREAD;
+      const hit = rayHitEntity(player.x, player.y, a, 8.5);
+      if (hit && hit.ent && hit.ent.alive) {
+        hit.ent.hp -= SHOT_DMG;
+        sfx('hit');
+        if (hit.ent.hp <= 0) {
+          hit.ent.alive = false;
+          hit.ent.respawnT = 1.8;
+        }
+      }
+    }
+  }
+
+  addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (!pointerLocked) return;
+    shoot();
+  });
+
+  function castRay(x, y, a, maxDist) {
+    const dx = Math.cos(a), dy = Math.sin(a);
+    let dist = 0;
+    const step = 0.02;
+    for (let i = 0; i < (maxDist / step) | 0; i++) {
+      x += dx * step;
+      y += dy * step;
+      dist += step;
+      if (cell(x, y) === 1) return dist;
+    }
+    return maxDist;
+  }
+
+  function rayHitEntity(x, y, a, maxDist) {
+    const wallDist = castRay(x, y, a, maxDist);
+    let best = null;
+    for (const b of bots) {
+      if (!b.alive) continue;
+      const vx = b.x - x, vy = b.y - y;
+      const along = vx * Math.cos(a) + vy * Math.sin(a);
+      if (along <= 0 || along >= wallDist) continue;
+      const perp = Math.abs(-vx * Math.sin(a) + vy * Math.cos(a));
+      if (perp <= ENT_RADIUS) {
+        if (!best || along < best.dist) best = { ent: b, dist: along };
+      }
+    }
+    return best;
+  }
+
+  function respawnPlayer() {
+    player.x = 3.5; player.y = 3.5; player.a = 0;
+    player.hp = MAX_HP;
+    player.alive = true;
+    player.respawnT = 0;
+  }
+
+  // ------------------------------------------------------------
+  // Movement with collision
+  // ------------------------------------------------------------
+  function tryMove(ent, nx, ny) {
+    const r = ENT_RADIUS;
+    let x = ent.x, y = ent.y;
+
+    if (cell(nx + (nx > x ? r : -r), y) === 0 && cell(nx, y + r) === 0 && cell(nx, y - r) === 0) {
+      x = nx;
+    }
+    if (cell(x, ny + (ny > y ? r : -r)) === 0 && cell(x + r, ny) === 0 && cell(x - r, ny) === 0) {
+      y = ny;
+    }
+    ent.x = x; ent.y = y;
+  }
+
+  function updateBots(dt) {
+    for (const b of bots) {
+      if (!b.alive) {
+        b.respawnT -= dt;
+        if (b.respawnT <= 0) {
+          b.hp = MAX_HP;
+          b.alive = true;
+          for (let tries = 0; tries < 200; tries++) {
+            const x = 1.5 + Math.random() * (MAP_W - 3);
+            const y = 1.5 + Math.random() * (MAP_H - 3);
+            if (cell(x, y) === 0 && dist2(x, y, player.x, player.y) > 9) {
+              b.x = x; b.y = y;
+              break;
+            }
+          }
+        }
+        continue;
+      }
+
+      const dx = player.x - b.x, dy = player.y - b.y;
+      const dd = Math.hypot(dx, dy) || 1;
+      const spd = 1.15;
+      const vx = (dx / dd) * spd;
+      const vy = (dy / dd) * spd;
+
+      let sx = 0, sy = 0;
+      for (const o of bots) {
+        if (o === b || !o.alive) continue;
+        const ox = b.x - o.x, oy = b.y - o.y;
+        const od = Math.hypot(ox, oy);
+        if (od > 0 && od < 0.5) {
+          sx += ox / od * 0.35;
+          sy += oy / od * 0.35;
+        }
+      }
+
+      const nx = b.x + (vx + sx) * dt;
+      const ny = b.y + (vy + sy) * dt;
+      tryMove(b, nx, ny);
+
+      if (player.alive && dist2(b.x, b.y, player.x, player.y) < (ENT_RADIUS + 0.22) ** 2) {
+        player.hp -= 20 * dt;
+        if (player.hp <= 0) {
+          player.hp = 0;
+          player.alive = false;
+          player.respawnT = 2.0;
+          sfx('dead');
+        }
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------
+  function render() {
+    const w = canvas.width, h = canvas.height;
+
+    ctx2d.fillStyle = '#1a1f2a';
+    ctx2d.fillRect(0, 0, w, (h/2)|0);
+    ctx2d.fillStyle = '#101013';
+    ctx2d.fillRect(0, (h/2)|0, w, (h/2)|0);
+
+    const fov = Math.PI / 3;
+    const rays = Math.min(960, w | 0);
+    const centerY = (h * 0.52);
+
+    for (let x = 0; x < rays; x++) {
+      const u = (x / rays) * 2 - 1;
+      const a = player.a + u * (fov / 2);
+
+      let dist = castRay(player.x, player.y, a, 20);
+      dist *= Math.cos(u * (fov / 2));
+      dist = Math.max(0.001, dist);
+
+      const wallH = Math.min(h, (h / dist) * 0.85);
+      const y0 = (centerY - wallH / 2) | 0;
+      const y1 = (centerY + wallH / 2) | 0;
+
+      const shade = clamp(1.15 - dist * 0.08, 0.15, 1.0);
+      const c = (shade * 255) | 0;
+      ctx2d.fillStyle = `rgb(${(c*0.9)|0},${(c*0.95)|0},${c})`;
+      const colW = (w / rays);
+      ctx2d.fillRect((x * colW) | 0, y0, Math.ceil(colW), (y1 - y0) | 0);
+    }
+
+    const vis = bots
+      .filter(b => b.alive)
+      .map(b => {
+        const dx = b.x - player.x, dy = b.y - player.y;
+        const dist = Math.hypot(dx, dy);
+        const ang = Math.atan2(dy, dx) - player.a;
+        return { b, dist, ang };
+      })
+      .filter(o => o.dist > 0.2)
+      .sort((a,b) => b.dist - a.dist);
+
+    for (const o of vis) {
+      let ang = o.ang;
+      while (ang < -Math.PI) ang += Math.PI*2;
+      while (ang >  Math.PI) ang -= Math.PI*2;
+      if (Math.abs(ang) > (fov/2) + 0.2) continue;
+
+      const wallDist = castRay(player.x, player.y, player.a + ang, 20);
+      if (o.dist > wallDist + 0.05) continue;
+
+      const size = (h / o.dist) * 0.14;
+      const sx = (w * (0.5 + (ang / fov))) | 0;
+      const sy = (centerY - size * 0.65) | 0;
+
+      const hp = clamp(o.b.hp / 100, 0, 1);
+      const r = (220 * (1 - hp) + 60) | 0;
+      const g = (220 * hp + 30) | 0;
+      const b = 70;
+
+      ctx2d.fillStyle = `rgb(${r},${g},${b})`;
+      ctx2d.fillRect((sx - size/2)|0, sy, size|0, (size*1.1)|0);
+
+      ctx2d.fillStyle = 'rgba(0,0,0,.6)';
+      ctx2d.fillRect((sx - size/2)|0, (sy - 10)|0, size|0, 6);
+      ctx2d.fillStyle = 'rgba(255,255,255,.9)';
+      ctx2d.fillRect((sx - size/2)|0, (sy - 10)|0, (size*hp)|0, 6);
+    }
+
+    const grd = ctx2d.createRadialGradient(w/2, h/2, Math.min(w,h)*0.15, w/2, h/2, Math.min(w,h)*0.75);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx2d.fillStyle = grd;
+    ctx2d.fillRect(0, 0, w, h);
+  }
+
+  // ------------------------------------------------------------
+  // Game loop
+  // ------------------------------------------------------------
+  let last = performance.now();
+  let fpsAcc = 0, fpsN = 0, fpsLast = performance.now();
+
+  function tick(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+
+    if (running) {
+      if (!player.alive) {
+        player.respawnT -= dt;
+        if (player.respawnT <= 0) respawnPlayer();
+      }
+
+      const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 2.8 : 2.15;
+      let fwd = 0, str = 0;
+      if (keys.has('KeyW')) fwd += 1;
+      if (keys.has('KeyS')) fwd -= 1;
+      if (keys.has('KeyA')) str -= 1;
+      if (keys.has('KeyD')) str += 1;
+
+      if (player.alive) {
+        const ax = Math.cos(player.a), ay = Math.sin(player.a);
+        const px = -ay, py = ax;
+        const nx = player.x + (ax * fwd + px * str) * speed * dt;
+        const ny = player.y + (ay * fwd + py * str) * speed * dt;
+        tryMove(player, nx, ny);
+      }
+
+      updateBots(dt);
+      render();
+      document.getElementById('hp').textContent = 'HP: ' + (player.hp | 0);
+    }
+
+    fpsAcc += 1;
+    fpsN += (1 / Math.max(1e-6, dt));
+    if (now - fpsLast > 350) {
+      document.getElementById('fps').textContent = ((fpsN / fpsAcc) | 0) + ' fps';
+      fpsAcc = 0; fpsN = 0; fpsLast = now;
+    }
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ------------------------------------------------------------
+  // UI: Join / Close
+  // ------------------------------------------------------------
+  const overlay = document.getElementById('overlay');
+  const joinBtn = document.getElementById('joinBtn');
+  const closeBtn = document.getElementById('closeBtn');
+  const statusEl = document.getElementById('status');
+  const wsInput = document.getElementById('ws');
+
+  wsInput.value = defaultWsUrl();
+  function setStatus(s) { statusEl.textContent = 'Status: ' + s; }
+
+  joinBtn.addEventListener('click', () => {
+    ensureAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume?.();
+
+    overlay.style.display = 'none';
+    running = true;
+    setStatus('kör');
+    lockPointer();
+
+    const url = (wsInput.value || '').trim();
+    if (url) connectWs(url);
+  });
+
+  closeBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    running = true;
+    setStatus('kör');
+    lockPointer();
+  });
+
+  canvas.addEventListener('click', () => {
+    if (!pointerLocked && running) lockPointer();
+  });
+})();
+</script>
+</body>
+</html>
