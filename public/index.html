@@ -52,7 +52,7 @@
     #hud-bar {
       position: fixed; bottom:0; left:0; right:0; height: 56px;
       background: #1a0000; border-top: 3px solid #550000;
-      display: flex; align-items: center; padding: 0 24px; gap: 32px;
+      display: flex; align-items: center; padding: 0 24px; gap: 26px;
       z-index: 5; pointer-events: none;
       font: bold 28px ui-monospace, monospace; color: #ff4400; text-shadow: 0 0 8px #ff2200;
     }
@@ -72,7 +72,6 @@
       opacity: 0; transition: opacity .2s ease; pointer-events:none; z-index: 6;
     }
 
-    /* Killfeed / Scoreboard / Pairkills */
     #killfeed{
       position: fixed; left: 12px; top: 12px; z-index: 6;
       display:flex; flex-direction:column; gap:6px;
@@ -88,7 +87,7 @@
 
     #scoreboard{
       position: fixed; right: 12px; top: 12px; z-index: 6;
-      min-width: 220px;
+      min-width: 240px;
       background: rgba(0,0,0,.45);
       border: 1px solid rgba(255,255,255,.12);
       padding: 10px 12px; border-radius: 12px;
@@ -100,8 +99,8 @@
     #scoreboard .me{ color: #ffe27a; }
 
     #pairkills{
-      position: fixed; right: 12px; top: 160px; z-index: 6;
-      min-width: 220px;
+      position: fixed; right: 12px; top: 168px; z-index: 6;
+      min-width: 240px;
       background: rgba(0,0,0,.35);
       border: 1px solid rgba(255,255,255,.10);
       padding: 10px 12px; border-radius: 12px;
@@ -110,7 +109,10 @@
     }
     #pairkills .hdr{ font-weight: 700; opacity: .9; margin-bottom: 8px; }
     #pairkills .row{ display:flex; justify-content:space-between; gap:10px; padding: 2px 0; opacity:.92; }
+
+    #hud-weapon { min-width: 120px; }
   </style>
+
   <script type="importmap">
     { "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
@@ -130,7 +132,16 @@
         <input id="room" maxlength="16" value="lobby" />
         <button id="join" disabled>Laddar ljud…</button>
       </p>
-      <p><b>W/S/A/D</b> = rör dig &bull; <b>Mus</b> = sikta &bull; <b>Klick</b> = skjut &bull; <b>Space</b> = hoppa &bull; <b>C/Ctrl</b> = ducka &bull; <b>R</b> = ladda om &bull; <b>ESC</b> = meny</p>
+      <p>
+        <b>W/S/A/D</b> = rör dig &bull;
+        <b>Mus</b> = sikta &bull;
+        <b>Klick</b> = skjut &bull;
+        <b>1</b>=Shotgun &bull; <b>2</b>=SMG &bull;
+        <b>Space</b> = hoppa &bull;
+        <b>C/Ctrl</b> = ducka &bull;
+        <b>R</b> = ladda om &bull;
+        <b>ESC</b> = meny
+      </p>
       <p id="status" style="opacity:.9"></p>
     </div>
   </div>
@@ -147,6 +158,9 @@
     <div class="hud-item"><div class="hud-label">HÄLSA</div><div class="hud-value" id="hud-hp">100</div></div>
     <div id="hud-face">😐</div>
     <div class="hud-item"><div class="hud-label">AMMO</div><div class="hud-value" id="hud-ammo">50</div></div>
+    <div class="hud-item" id="hud-weapon">
+      <div class="hud-label">VAPEN</div><div class="hud-value" id="hud-weapon-name">SHOTGUN</div>
+    </div>
     <div class="hud-item" style="font-size:16px"><div class="hud-label">SPELARE</div><div class="hud-value" id="hud-players">–</div></div>
     <div id="hud-room">OFFLINE</div>
   </div>
@@ -156,10 +170,10 @@
     import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
     // =========================
-    // Ljud – ladda MP3 från server vid start
+    // Ljud
     // =========================
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const sounds   = { shoot: null, shell: null, reload: null };
+    const sounds   = { shoot: null, shell: null, reload: null, smg: null };
     const joinBtn  = document.getElementById("join");
 
     async function loadSound(url) {
@@ -169,11 +183,12 @@
       return audioCtx.decodeAudioData(ab);
     }
 
-    function playBuffer(buf, delay = 0, volume = 1.0) {
+    function playBuffer(buf, delay = 0, volume = 1.0, rate = 1.0) {
       if (!buf) return;
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const src  = audioCtx.createBufferSource();
       src.buffer = buf;
+      src.playbackRate.value = rate;
       const gain = audioCtx.createGain();
       gain.gain.value = volume;
       src.connect(gain);
@@ -182,13 +197,15 @@
     }
 
     Promise.all([
-      loadSound('/Shotgun2.mp3'),  // skottsmäll
-      loadSound('/Shotgun3.mp3'),  // hylsa kastas ut
-      loadSound('/Shotgun1.mp3'),  // mekaniskt laddljud
-    ]).then(([shoot, shell, reload]) => {
+      loadSound('/Shotgun2.mp3'),
+      loadSound('/Shotgun3.mp3'),
+      loadSound('/Shotgun1.mp3'),
+      loadSound('/smg.mp3'),
+    ]).then(([shoot, shell, reload, smg]) => {
       sounds.shoot  = shoot;
       sounds.shell  = shell;
       sounds.reload = reload;
+      sounds.smg    = smg;
       joinBtn.disabled    = false;
       joinBtn.textContent = "Join";
     }).catch((e) => {
@@ -207,6 +224,11 @@
         playBuffer(sounds.reload, 0.00, 0.9);
         playBuffer(sounds.shell,  0.30, 0.5);
       }
+      if (type === 'smg') {
+        // lite variation i rate så det känns mindre “loop”
+        const r = 0.98 + Math.random() * 0.06;
+        playBuffer(sounds.smg, 0.00, 0.85, r);
+      }
     }
 
     // =========================
@@ -217,19 +239,16 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.autoClear = true;
 
-    // Färgrymd + tonemapping (grafiklyft utan att ändra gameplay)
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
 
-    // Skuggor (mild inställning)
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     document.body.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 200);
 
     // =========================
@@ -259,7 +278,6 @@
     sky.colorSpace = THREE.SRGBColorSpace;
     scene.background = sky;
 
-    // Fog matchad mot himlen (behåller samma “dimma”-idé som innan)
     scene.fog = new THREE.Fog(0x88a8cc, 35, 160);
 
     // =========================
@@ -304,7 +322,7 @@
       if (connected) controls.lock();
     });
 
-    // Killfeed / scoreboard UI
+    // Killfeed / scoreboard / pairkills
     const killfeedEl = document.getElementById("killfeed");
     const scoreboardEl = document.getElementById("scoreboard");
     const pairkillsEl = document.getElementById("pairkills");
@@ -313,9 +331,6 @@
     function addKillLine(text) {
       killfeed.unshift({ text, t: performance.now() });
       killfeed.splice(6);
-      renderKillfeed();
-    }
-    function renderKillfeed() {
       killfeedEl.innerHTML = killfeed.map(k => `<div class="line">${escapeHtml(k.text)}</div>`).join("");
     }
     function renderScoreboard(list) {
@@ -341,12 +356,10 @@
     }
 
     // =========================
-    // 3D Vapen (child of camera) – nu med weapon_wood/weapon_metal
+    // Vapen texturer/material
     // =========================
     const texWeaponWood  = loadTex("/weapon_wood.png");
     const texWeaponMetal = loadTex("/weapon_metal.png");
-    texWeaponWood.repeat.set(1, 1);
-    texWeaponMetal.repeat.set(1, 1);
 
     const mMetal = new THREE.MeshStandardMaterial({
       map: texWeaponMetal,
@@ -361,67 +374,98 @@
     const mHand  = new THREE.MeshStandardMaterial({ color: 0xb86030, roughness: 0.9, metalness: 0.0 });
     const mHandL = new THREE.MeshStandardMaterial({ color: 0xd07848, roughness: 0.9, metalness: 0.0 });
 
-    const weaponGroup = new THREE.Group();
+    // =========================
+    // First-person weapon system (shotgun + smg)
+    // =========================
+    const weaponRoot = new THREE.Group();
+    weaponRoot.position.set(0.22, -0.20, -0.30);
+    weaponRoot.rotation.y = 0.06;
+    weaponRoot.visible = false;
+    camera.add(weaponRoot);
 
-    function addBox(w, h, d, mat, x, y, z) {
+    const weaponShotgun = new THREE.Group();
+    const weaponSmg = new THREE.Group();
+    weaponRoot.add(weaponShotgun);
+    weaponRoot.add(weaponSmg);
+
+    function addBoxTo(group, w, h, d, mat, x, y, z) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
       m.position.set(x,y,z);
-      weaponGroup.add(m);
+      group.add(m);
+      return m;
     }
 
-    // metall (pipa/receiver)
-    addBox(0.055,0.055,1.1,   mMetal,  0,      0.005, -0.55);
-    addBox(0.035,0.008,1.08,  mMetal,  0,      0.034, -0.55);
-    addBox(0.042,0.042,0.78,  mMetal,  0,     -0.052, -0.39);
-    addBox(0.11, 0.10, 0.28,  mMetal,  0,      0.005,  0.08);
-    addBox(0.085,0.065,0.24,  mMetal,  0,      0.010,  0.08);
-    addBox(0.08, 0.010,0.22,  mMetal,  0,      0.052,  0.07);
+    // --- Shotgun model (same as before, textured)
+    addBoxTo(weaponShotgun, 0.055,0.055,1.1,   mMetal,  0,      0.005, -0.55);
+    addBoxTo(weaponShotgun, 0.035,0.008,1.08,  mMetal,  0,      0.034, -0.55);
+    addBoxTo(weaponShotgun, 0.042,0.042,0.78,  mMetal,  0,     -0.052, -0.39);
+    addBoxTo(weaponShotgun, 0.11, 0.10, 0.28,  mMetal,  0,      0.005,  0.08);
+    addBoxTo(weaponShotgun, 0.085,0.065,0.24,  mMetal,  0,      0.010,  0.08);
+    addBoxTo(weaponShotgun, 0.08, 0.010,0.22,  mMetal,  0,      0.052,  0.07);
 
-    // trä (pump/stock)
-    addBox(0.10, 0.068,0.22,  mWood,   0,     -0.018, -0.22);
-    addBox(0.076,0.040,0.18,  mWood,   0,     -0.008, -0.22);
-    addBox(0.088,0.088,0.26,  mWood,   0,     -0.004,  0.29);
-    addBox(0.068,0.060,0.22,  mWood,   0,      0.004,  0.28);
+    addBoxTo(weaponShotgun, 0.10, 0.068,0.22,  mWood,   0,     -0.018, -0.22);
+    addBoxTo(weaponShotgun, 0.076,0.040,0.18,  mWood,   0,     -0.008, -0.22);
+    addBoxTo(weaponShotgun, 0.088,0.088,0.26,  mWood,   0,     -0.004,  0.29);
+    addBoxTo(weaponShotgun, 0.068,0.060,0.22,  mWood,   0,      0.004,  0.28);
+    addBoxTo(weaponShotgun, 0.092,0.092,0.014, mMetal,  0,     -0.004,  0.42);
 
-    // metall liten platta
-    addBox(0.092,0.092,0.014, mMetal,  0,     -0.004,  0.42);
+    addBoxTo(weaponShotgun, 0.065,0.13, 0.08,  mWood,   0.006,-0.085,   0.12);
+    addBoxTo(weaponShotgun, 0.046,0.10, 0.06,  mWood,   0.006,-0.072,   0.12);
 
-    // trä + händer
-    addBox(0.065,0.13, 0.08,  mWood,   0.006,-0.085,   0.12);
-    addBox(0.046,0.10, 0.06,  mWood,   0.006,-0.072,   0.12);
+    addBoxTo(weaponShotgun, 0.088,0.095,0.13,  mHand,   0.042,-0.098,   0.14);
+    addBoxTo(weaponShotgun, 0.065,0.068,0.10,  mHandL,  0.042,-0.088,   0.14);
+    addBoxTo(weaponShotgun, 0.022,0.065,0.022, mHand,   0.018,-0.155,   0.10);
+    addBoxTo(weaponShotgun, 0.022,0.065,0.022, mHand,   0.042,-0.158,   0.10);
+    addBoxTo(weaponShotgun, 0.022,0.060,0.022, mHand,   0.066,-0.152,   0.10);
+    addBoxTo(weaponShotgun, 0.018,0.050,0.022, mHand,   0.088,-0.144,   0.10);
+    addBoxTo(weaponShotgun, 0.022,0.048,0.048, mHand,   0.004,-0.068,   0.08);
 
-    addBox(0.088,0.095,0.13,  mHand,   0.042,-0.098,   0.14);
-    addBox(0.065,0.068,0.10,  mHandL,  0.042,-0.088,   0.14);
-    addBox(0.022,0.065,0.022, mHand,   0.018,-0.155,   0.10);
-    addBox(0.022,0.065,0.022, mHand,   0.042,-0.158,   0.10);
-    addBox(0.022,0.060,0.022, mHand,   0.066,-0.152,   0.10);
-    addBox(0.018,0.050,0.022, mHand,   0.088,-0.144,   0.10);
+    addBoxTo(weaponShotgun, 0.088,0.075,0.15,  mHand,   0.042,-0.055,  -0.22);
+    addBoxTo(weaponShotgun, 0.065,0.055,0.12,  mHandL,  0.042,-0.048,  -0.22);
+    addBoxTo(weaponShotgun, 0.022,0.058,0.022, mHand,   0.018,-0.115,  -0.26);
+    addBoxTo(weaponShotgun, 0.022,0.058,0.022, mHand,   0.042,-0.118,  -0.26);
+    addBoxTo(weaponShotgun, 0.022,0.052,0.022, mHand,   0.066,-0.112,  -0.26);
+    addBoxTo(weaponShotgun, 0.018,0.044,0.022, mHand,   0.088,-0.105,  -0.26);
 
-    addBox(0.022,0.048,0.048, mHand,   0.004,-0.068,   0.08);
+    // --- SMG model (snabbt, kompakt: barrel + receiver + mag + stock + hands)
+    // Barrel (short)
+    addBoxTo(weaponSmg, 0.05, 0.05, 0.55, mMetal, 0.00, 0.01, -0.40);
+    // Receiver
+    addBoxTo(weaponSmg, 0.13, 0.09, 0.22, mMetal, 0.00, 0.00,  0.02);
+    addBoxTo(weaponSmg, 0.11, 0.03, 0.18, mMetal, 0.00, 0.06,  0.02);
+    // Magazine
+    addBoxTo(weaponSmg, 0.06, 0.16, 0.05, mMetal, 0.02,-0.10, -0.00);
+    // Grip (wood-ish for contrast)
+    addBoxTo(weaponSmg, 0.06, 0.10, 0.06, mWood,  0.02,-0.09,  0.08);
+    // Stock
+    addBoxTo(weaponSmg, 0.04, 0.04, 0.22, mMetal, -0.03, 0.03,  0.22);
+    addBoxTo(weaponSmg, 0.06, 0.03, 0.12, mMetal, -0.02, 0.02,  0.32);
 
-    addBox(0.088,0.075,0.15,  mHand,   0.042,-0.055,  -0.22);
-    addBox(0.065,0.055,0.12,  mHandL,  0.042,-0.048,  -0.22);
-    addBox(0.022,0.058,0.022, mHand,   0.018,-0.115,  -0.26);
-    addBox(0.022,0.058,0.022, mHand,   0.042,-0.118,  -0.26);
-    addBox(0.022,0.052,0.022, mHand,   0.066,-0.112,  -0.26);
-    addBox(0.018,0.044,0.022, mHand,   0.088,-0.105,  -0.26);
+    // Hands (re-use)
+    addBoxTo(weaponSmg, 0.085,0.075,0.12,  mHand,  0.05,-0.06, -0.10);
+    addBoxTo(weaponSmg, 0.065,0.055,0.10,  mHandL, 0.05,-0.05, -0.10);
+    addBoxTo(weaponSmg, 0.085,0.075,0.12,  mHand,  0.05,-0.05,  0.14);
+    addBoxTo(weaponSmg, 0.065,0.055,0.10,  mHandL, 0.05,-0.04,  0.14);
 
-    weaponGroup.position.set(0.22, -0.20, -0.30);
-    weaponGroup.rotation.y = 0.06;
-    weaponGroup.visible = false;
-    camera.add(weaponGroup);
+    // Weapon visibility switching
+    let currentWeapon = "shotgun";
+    function setWeapon(w) {
+      if (w !== "shotgun" && w !== "smg") return;
+      currentWeapon = w;
+      weaponShotgun.visible = (w === "shotgun");
+      weaponSmg.visible = (w === "smg");
+      wsSend({ t:"weapon", weapon: w });
+      updateHUD();
+      attachMuzzleToActive();
+    }
 
-    // Vapen ska normalt inte kasta skuggor i FPS
-    weaponGroup.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-
+    // Weapon light
     const wKeyLight = new THREE.PointLight(0xffffff, 1.5, 3);
     wKeyLight.position.set(0.3, 0.2, -0.1);
     camera.add(wKeyLight);
 
-    // Muzzle flash
+    // Muzzle flash setup (sprite + light, re-attached per weapon)
     const muzzleLight = new THREE.PointLight(0xff8800, 0, 4);
-    muzzleLight.position.set(0, 0.005, -1.1);
-    weaponGroup.add(muzzleLight);
 
     const muzzleCanvas = document.createElement('canvas');
     muzzleCanvas.width = muzzleCanvas.height = 128;
@@ -446,12 +490,28 @@
     });
     const muzzleSprite = new THREE.Sprite(muzzleSpriteMat);
     muzzleSprite.scale.set(0.15, 0.15, 1);
-    muzzleSprite.position.set(0, 0.005, -1.1);
-    weaponGroup.add(muzzleSprite);
+
+    function attachMuzzleToActive() {
+      // remove from any parent
+      if (muzzleLight.parent) muzzleLight.parent.remove(muzzleLight);
+      if (muzzleSprite.parent) muzzleSprite.parent.remove(muzzleSprite);
+
+      const active = (currentWeapon === "shotgun") ? weaponShotgun : weaponSmg;
+
+      // position depends a bit on model
+      const z = (currentWeapon === "shotgun") ? -1.1 : -0.70;
+      muzzleLight.position.set(0, 0.01, z);
+      muzzleSprite.position.set(0, 0.01, z);
+
+      active.add(muzzleLight);
+      active.add(muzzleSprite);
+    }
+
+    attachMuzzleToActive();
 
     let muzzleFlashLife = 0, weaponBobT = 0, weaponKick = 0;
-    controls.addEventListener("lock",   () => weaponGroup.visible = true);
-    controls.addEventListener("unlock", () => weaponGroup.visible = false);
+    controls.addEventListener("lock",   () => weaponRoot.visible = true);
+    controls.addEventListener("unlock", () => weaponRoot.visible = false);
 
     // =========================
     // Bullet tracers
@@ -498,7 +558,7 @@
     }
 
     // =========================
-    // Lokal hit-detection (endast toast, servern gör HP/kill)
+    // Lokal hit-detection (toast only)
     // =========================
     const localRaycaster = new THREE.Raycaster();
     function localShootRaycast() {
@@ -521,15 +581,10 @@
     }
 
     // =========================
-    // Karta (nu med texturer)
+    // Map (textured)
     // =========================
-    const wallMat  = new THREE.MeshStandardMaterial({
-      map: texWall, roughness: 1.0, metalness: 0.0
-    });
-    const floorMat = new THREE.MeshStandardMaterial({
-      map: texFloor, roughness: 1.0, metalness: 0.0
-    });
-
+    const wallMat  = new THREE.MeshStandardMaterial({ map: texWall,  roughness: 1.0, metalness: 0.0 });
+    const floorMat = new THREE.MeshStandardMaterial({ map: texFloor, roughness: 1.0, metalness: 0.0 });
     const cellSize = 4;
 
     const MAP = [
@@ -556,9 +611,7 @@
       return MAP[cz][cx] === "#";
     }
 
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(mapW*cellSize, mapH*cellSize), floorMat
-    );
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(mapW*cellSize, mapH*cellSize), floorMat);
     floor.rotation.x = -Math.PI/2;
     floor.position.set((mapW*cellSize)/2, 0, (mapH*cellSize)/2);
     floor.receiveShadow = true;
@@ -580,7 +633,7 @@
     wallInst.instanceMatrix.needsUpdate = true;
 
     // =========================
-    // Andra spelare – 3D humanoids
+    // Others (humanoids + enemy weapon switch)
     // =========================
     const others = new Map();
     const pSkin  = new THREE.MeshStandardMaterial({ color: 0xe8b880, roughness: 0.95, metalness: 0.0 });
@@ -590,6 +643,29 @@
     const pHair  = new THREE.MeshStandardMaterial({ color: 0x2a1a08, roughness: 0.95, metalness: 0.0 });
     const pDead  = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 1.0,  metalness: 0.0 });
 
+    function makeEnemyGunShotgun() {
+      const g = new THREE.Group();
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.55), mMetal);
+      barrel.position.set(0, 0, -0.28); barrel.castShadow = true; g.add(barrel);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.20), mWood);
+      stock.position.set(0, -0.01, 0.12); stock.castShadow = true; g.add(stock);
+      return g;
+    }
+
+    function makeEnemyGunSmg() {
+      const g = new THREE.Group();
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.38), mMetal);
+      barrel.position.set(0, 0, -0.18); barrel.castShadow = true; g.add(barrel);
+
+      const recv = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.07, 0.18), mMetal);
+      recv.position.set(0, 0, 0.04); recv.castShadow = true; g.add(recv);
+
+      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.04), mMetal);
+      mag.position.set(0.02, -0.10, 0.02); mag.castShadow = true; g.add(mag);
+
+      return g;
+    }
+
     function makeHumanoid() {
       const g = new THREE.Group();
       const add = (geo, mat, x, y, z) => {
@@ -597,7 +673,6 @@
         m.position.set(x,y,z);
         m.userData.mat = mat;
         m.castShadow = true;
-        m.receiveShadow = false;
         g.add(m);
         return m;
       };
@@ -617,25 +692,22 @@
       add(new THREE.BoxGeometry(0.24,0.12,0.34), pShoe,   0.15,-0.16,  0.05);
       add(new THREE.BoxGeometry(0.24,0.12,0.34), pShoe,  -0.15,-0.16,  0.05);
 
-      // Enemy weapon (synligt) med samma wood/metal-texturer
-      const gun = new THREE.Group();
+      const gunRoot = new THREE.Group();
+      gunRoot.position.set(0.50, 1.05, -0.05);
+      gunRoot.rotation.y = Math.PI;
+      gunRoot.rotation.x = -0.1;
 
-      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.55), mMetal);
-      barrel.position.set(0, 0, -0.28);
-      barrel.castShadow = true;
-      gun.add(barrel);
+      const gunShot = makeEnemyGunShotgun();
+      const gunSmg  = makeEnemyGunSmg();
+      gunRoot.add(gunShot);
+      gunRoot.add(gunSmg);
+      gunSmg.visible = false;
 
-      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.20), mWood);
-      stock.position.set(0, -0.01, 0.12);
-      stock.castShadow = true;
-      gun.add(stock);
+      g.add(gunRoot);
+      g.userData.gunRoot = gunRoot;
+      g.userData.gunShot = gunShot;
+      g.userData.gunSmg  = gunSmg;
 
-      gun.position.set(0.50, 1.05, -0.05);
-      gun.rotation.y = Math.PI;
-      gun.rotation.x = -0.1;
-      g.add(gun);
-
-      g.userData.gun = gun;
       return g;
     }
 
@@ -667,7 +739,7 @@
       const o = {
         humanoid, label,
         flashLight: enemyFlash, flashLife: 0,
-        last: { x:0, z:0, yaw:0, pitch:0, hp:100, name },
+        last: { x:0, z:0, yaw:0, pitch:0, hp:100, name, weapon:"shotgun" },
         render: { x:0, z:0 }
       };
       others.set(id, o); return o;
@@ -679,7 +751,7 @@
     }
 
     // =========================
-    // Rörelse
+    // Movement
     // =========================
     const keys = new Set();
     addEventListener("keydown", e => keys.add(e.code));
@@ -778,11 +850,11 @@
       const bobY = Math.sin(weaponBobT*6) * Math.min(speedNow,10) * 0.003;
       const bobX = Math.sin(weaponBobT*3) * Math.min(speedNow,10) * 0.001;
       weaponKick = Math.max(0, weaponKick - 0.005);
-      weaponGroup.position.set(0.22+bobX, -0.20+bobY+weaponKick, -0.30);
+      weaponRoot.position.set(0.22+bobX, -0.20+bobY+weaponKick, -0.30);
     }
 
     // =========================
-    // Nätverk
+    // Network
     // =========================
     const WS_URL = (location.protocol==="https:"?"wss://":"ws://") + location.host;
     let ws = null;
@@ -831,6 +903,9 @@
           showToast(`Joined: ${msg.room}`);
           ui.style.display = "none";
           setTimeout(() => controls.lock(), 50);
+
+          // default weapon
+          setWeapon("shotgun");
           return;
         }
 
@@ -847,6 +922,12 @@
           const o = ensureOther(msg.id, msg.name);
           o.label.material.map = makeNameLabel(msg.name);
           o.label.material.needsUpdate = true; o.last.name = msg.name; return;
+        }
+
+        if (msg.t === "weapon") {
+          const o = others.get(msg.id);
+          if (o) o.last.weapon = msg.weapon;
+          return;
         }
 
         // Motståndares skott: tracer + muzzle flash (yaw + pitch)
@@ -929,7 +1010,7 @@
     });
 
     // =========================
-    // Input → server
+    // Input -> server
     // =========================
     function getYawPitch() {
       return { yaw: controls.getObject().rotation.y, pitch: camera.rotation.x };
@@ -948,18 +1029,18 @@
     }
 
     // =========================
-    // Skjuta
+    // Shooting
     // =========================
-    let shootCooldown = 0;
-    addEventListener("mousedown", e => {
-      if (e.button !== 0 || !controls.isLocked) return;
-      if (shootCooldown > 0) return;
-      if (player.ammo <= 0) { showToast("TOMT! (R = ladda om)"); return; }
+    function triggerMuzzleFlash() {
+      weaponKick = 0.04; muzzleFlashLife = 1.0;
+      muzzleLight.intensity = 6; muzzleSpriteMat.opacity = 1;
+      hitflash.style.background = "rgba(255,210,100,0.06)";
+      setTimeout(() => hitflash.style.background = "", 55);
+    }
 
+    function doSingleShot() {
+      if (player.ammo <= 0) { showToast("TOMT! (R = ladda om)"); return false; }
       player.ammo--;
-      shootCooldown = 0.7;
-      playSound('shoot');
-      triggerMuzzleFlash();
 
       const dir  = new THREE.Vector3(); camera.getWorldDirection(dir);
       const from = camera.position.clone().addScaledVector(dir, 0.5);
@@ -967,13 +1048,74 @@
       localShootRaycast();
 
       const { yaw, pitch } = getYawPitch();
-      wsSend({ t:"shoot", yaw, pitch });
+      wsSend({ t:"shoot", yaw, pitch, weapon: currentWeapon });
+
+      triggerMuzzleFlash();
+      return true;
+    }
+
+    // Shotgun cooldown (single shot)
+    let shootCooldown = 0;
+
+    // SMG burst control
+    let smgBurstActive = false;
+    let smgBurstCooldown = 0;
+
+    function startSmgBurst() {
+      if (smgBurstActive || smgBurstCooldown > 0) return;
+      if (!controls.isLocked) return;
+
+      // Always 2s burst, 8 shots (0.25s interval)
+      const shots = 8;
+      const intervalMs = 250;
+
+      smgBurstActive = true;
+      smgBurstCooldown = 2.05; // small margin
+
+      for (let i = 0; i < shots; i++) {
+        setTimeout(() => {
+          if (!controls.isLocked) return;
+          if (player.hp <= 0) return;
+
+          // per bullet sound + shot
+          const ok = doSingleShot();
+          if (ok) playSound("smg");
+
+          if (i === shots - 1) smgBurstActive = false;
+        }, i * intervalMs);
+      }
+    }
+
+    addEventListener("mousedown", e => {
+      if (e.button !== 0 || !controls.isLocked) return;
+
+      if (currentWeapon === "shotgun") {
+        if (shootCooldown > 0) return;
+        if (!doSingleShot()) return;
+
+        // shotgun sound chain
+        playSound('shoot');
+        shootCooldown = 0.7;
+        return;
+      }
+
+      if (currentWeapon === "smg") {
+        startSmgBurst();
+      }
     });
 
     addEventListener("keydown", e => {
-      if (e.code === "KeyR" && controls.isLocked) {
-        player.ammo = 50; playSound('reload'); showToast("LADDAT!"); updateHUD();
+      if (!controls.isLocked) return;
+
+      if (e.code === "KeyR") {
+        player.ammo = 50;
+        playSound('reload');
+        showToast("LADDAT!");
+        updateHUD();
       }
+
+      if (e.code === "Digit1") { setWeapon("shotgun"); showToast("SHOTGUN"); }
+      if (e.code === "Digit2") { setWeapon("smg");    showToast("SMG (burst)"); }
     });
 
     let inputSendAccum = 0;
@@ -987,8 +1129,19 @@
         o.render.x += (o.last.x - o.render.x) * interp;
         o.render.z += (o.last.z - o.render.z) * interp;
         o.humanoid.position.set(o.render.x, 0, o.render.z);
+
         if (o.last.yaw !== undefined) o.humanoid.rotation.y = o.last.yaw + Math.PI;
         o.label.position.set(o.render.x, 2.4, o.render.z);
+
+        // switch enemy weapon visibility
+        const w = o.last.weapon || "shotgun";
+        const hr = o.humanoid.userData.gunRoot;
+        const gs = o.humanoid.userData.gunShot;
+        const gm = o.humanoid.userData.gunSmg;
+        if (hr && gs && gm) {
+          gs.visible = (w === "shotgun");
+          gm.visible = (w === "smg");
+        }
 
         const alive = (o.last.hp ?? 100) > 0;
         o.humanoid.traverse(m => { if (m.isMesh) m.material = alive ? m.userData.mat : pDead; });
@@ -1001,18 +1154,12 @@
     }
 
     // =========================
-    // Hit flash & muzzle
+    // Hit flash
     // =========================
     const hitflash = document.getElementById("hitflash");
     function triggerHitFlash() {
       hitflash.style.background = "rgba(220,0,0,0.35)";
       setTimeout(() => hitflash.style.background = "rgba(220,0,0,0)", 150);
-    }
-    function triggerMuzzleFlash() {
-      weaponKick = 0.04; muzzleFlashLife = 1.0;
-      muzzleLight.intensity = 6; muzzleSpriteMat.opacity = 1;
-      hitflash.style.background = "rgba(255,210,100,0.06)";
-      setTimeout(() => hitflash.style.background = "", 55);
     }
 
     // =========================
@@ -1023,6 +1170,7 @@
     const hudFace    = document.getElementById("hud-face");
     const hudPlayers = document.getElementById("hud-players");
     const hudRoom    = document.getElementById("hud-room");
+    const hudWeapon  = document.getElementById("hud-weapon-name");
 
     function updateHUD() {
       const hp = Math.max(0, player.hp);
@@ -1030,6 +1178,7 @@
       hudAmmo.textContent    = player.ammo;
       hudPlayers.textContent = others.size + 1;
       hudRoom.textContent    = connected ? `RUM: ${player.room}` : "OFFLINE";
+      hudWeapon.textContent  = (currentWeapon === "smg") ? "SMG" : "SHOTGUN";
       hudFace.textContent    = hp > 70 ? "😐" : hp > 40 ? "😬" : hp > 15 ? "😰" : "😵";
       hudHp.style.color      = hp > 50 ? "#ff4400" : hp > 25 ? "#ffaa00" : "#ff0000";
     }
@@ -1046,7 +1195,10 @@
     const clock = new THREE.Clock();
     function tick() {
       const dt = Math.min(0.033, clock.getDelta());
+
       if (shootCooldown > 0) shootCooldown -= dt;
+      if (smgBurstCooldown > 0) smgBurstCooldown -= dt;
+
       if (controls.isLocked) movePlayer(dt);
 
       if (connected) {
