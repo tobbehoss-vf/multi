@@ -1,6 +1,5 @@
 // server.js
-// Render-friendly: serves /public/index.html AND runs WebSocket on same origin.
-// Server-authoritative movement + wall collision + hits + respawn.
+// Render-friendly: serves /public/* statically AND runs WebSocket on same origin.
 
 import http from "http";
 import { WebSocketServer } from "ws";
@@ -15,9 +14,36 @@ const PORT = process.env.PORT || 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
-app.use(express.static('public'));
 
-function serveFile(res, filePath, contentType) {
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js":   "application/javascript",
+  ".css":  "text/css",
+  ".png":  "image/png",
+  ".jpg":  "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif":  "image/gif",
+  ".svg":  "image/svg+xml",
+  ".ico":  "image/x-icon",
+  ".json": "application/json",
+};
+
+function serveStatic(req, res) {
+  // Normalize URL: strip query string, default to index.html
+  let urlPath = req.url.split("?")[0];
+  if (urlPath === "/") urlPath = "/index.html";
+
+  const filePath = path.join(PUBLIC_DIR, urlPath);
+
+  // Security: make sure we don't escape the public dir
+  if (!filePath.startsWith(PUBLIC_DIR)) {
+    res.writeHead(403); res.end("Forbidden");
+    return;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME[ext] || "application/octet-stream";
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404, { "Content-Type": "text/plain" });
@@ -30,15 +56,11 @@ function serveFile(res, filePath, contentType) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url === "/" || req.url === "/index.html") {
-    return serveFile(res, path.join(PUBLIC_DIR, "index.html"), "text/html; charset=utf-8");
-  }
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "text/plain" });
     return res.end("ok\n");
   }
-  res.writeHead(404, { "Content-Type": "text/plain" });
-  res.end("Not found\n");
+  serveStatic(req, res);
 });
 
 // ---------- WebSocket game server ----------
@@ -54,30 +76,28 @@ const RESPAWN_MS = 1200;
 
 const PLAYER_RADIUS = 0.55;
 
-// movement tuning (keep simple and deterministic)
 const SPEED = 9.8;
 const ACCEL = 28.0;
 const FRICTION = 12.0;
 
-// ---- Level (same map as client) ----
+// ---- Level ----
 const CELL = 4;
 const MAP = [
-  "########################",
-  "#..........#...........#",
-  "#..####....#....####...#",
-  "#..#..#.........#..#...#",
-  "#..####....##...####...#",
-  "#...........#..........#",
-  "#..####..#####..####...#",
-  "#.....#..#...#..#......#",
-  "###...#..#...#..#...####",
-  "#.....#..#####..#......#",
-  "#..........#...........#",
-  "#..####....#....####...#",
-  "#..#..#.........#..#...#",
-  "#..####....#....####...#",
-  "#..........#...........#",
-  "########################"
+  "####################",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "#..................#",
+  "####################"
 ];
 const MAP_H = MAP.length;
 const MAP_W = MAP[0].length;
@@ -92,7 +112,6 @@ function circleHitsWall(x, z, r) {
   const maxCX = Math.floor((x + r) / CELL);
   const minCZ = Math.floor((z - r) / CELL);
   const maxCZ = Math.floor((z + r) / CELL);
-
   for (let cz = minCZ; cz <= maxCZ; cz++) {
     for (let cx = minCX; cx <= maxCX; cx++) {
       if (!isWallCell(cx, cz)) continue;
@@ -134,11 +153,11 @@ function getOrCreateRoom(name) {
 
 function spawnPoint(room) {
   const base = [
-    { x: 8, z: 8 },
-    { x: 84, z: 8 },
-    { x: 8, z: 56 },
-    { x: 84, z: 56 },
-    { x: 46, z: 32 },
+    { x: 8,  z: 8  },
+    { x: 68, z: 8  },
+    { x: 8,  z: 52 },
+    { x: 68, z: 52 },
+    { x: 38, z: 28 },
   ];
   let sp = base[room.players.size % base.length];
   const cx = Math.floor(sp.x / CELL), cz = Math.floor(sp.z / CELL);
@@ -153,7 +172,7 @@ function broadcast(room, obj) {
   }
 }
 
-// ---- Hitscan with wall blocking (ray marching in grid) ----
+// ---- Hitscan ----
 function yawToDirXZ(yaw) {
   const dx = -Math.sin(yaw);
   const dz = -Math.cos(yaw);
@@ -162,14 +181,11 @@ function yawToDirXZ(yaw) {
 }
 
 function rayBlockedByWall(ox, oz, dx, dz, maxDist) {
-  // Step in small increments; cheap & good enough for prototype.
   const step = 0.35;
   let t = 0;
   while (t <= maxDist) {
-    const x = ox + dx * t;
-    const z = oz + dz * t;
-    const cx = Math.floor(x / CELL);
-    const cz = Math.floor(z / CELL);
+    const cx = Math.floor((ox + dx * t) / CELL);
+    const cz = Math.floor((oz + dz * t) / CELL);
     if (isWallCell(cx, cz)) return true;
     t += step;
   }
@@ -180,23 +196,17 @@ function rayHitsPlayer(shooter, target, dirX, dirZ, maxDist = 60) {
   const ox = shooter.x, oz = shooter.z;
   const cx = target.x, cz = target.z;
   const r = PLAYER_RADIUS;
-
   const mx = cx - ox, mz = cz - oz;
   const t = mx * dirX + mz * dirZ;
   if (t < 0 || t > maxDist) return null;
-
   const px = ox + dirX * t;
   const pz = oz + dirZ * t;
-  const dist2 = (cx - px) ** 2 + (cz - pz) ** 2;
-  if (dist2 > r * r) return null;
-
-  // wall blocking: ensure no wall between shooter and hit point
-  const blocked = rayBlockedByWall(ox, oz, dirX, dirZ, t);
-  if (blocked) return null;
-
+  if ((cx - px) ** 2 + (cz - pz) ** 2 > r * r) return null;
+  if (rayBlockedByWall(ox, oz, dirX, dirZ, t)) return null;
   return t;
 }
 
+// ---- WebSocket ----
 wss.on("connection", (ws) => {
   let player = null;
 
@@ -208,7 +218,6 @@ wss.on("connection", (ws) => {
       const room = getOrCreateRoom(msg.room || "lobby");
       const id = rid();
       const sp = spawnPoint(room);
-
       player = {
         id, ws,
         room: room.name,
@@ -223,13 +232,10 @@ wss.on("connection", (ws) => {
         shootYaw: 0,
         shootPitch: 0
       };
-
       room.players.set(id, player);
 
       ws.send(JSON.stringify({
-        t: "welcome",
-        id,
-        room: room.name,
+        t: "welcome", id, room: room.name,
         you: { x: player.x, z: player.z, hp: player.hp },
         players: [...room.players.values()].map(p => ({
           id: p.id, name: p.name, x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp
@@ -249,16 +255,16 @@ wss.on("connection", (ws) => {
     player.lastHeardMs = nowMs();
 
     if (msg.t === "input") {
-      player.inX = clamp(Number(msg.ix) || 0, -1, 1);
-      player.inZ = clamp(Number(msg.iz) || 0, -1, 1);
-      player.yaw = Number(msg.yaw) || 0;
+      player.inX   = clamp(Number(msg.ix) || 0, -1, 1);
+      player.inZ   = clamp(Number(msg.iz) || 0, -1, 1);
+      player.yaw   = Number(msg.yaw) || 0;
       player.pitch = clamp(Number(msg.pitch) || 0, -1.4, 1.4);
       return;
     }
 
     if (msg.t === "shoot") {
-      player.wantShoot = 1;
-      player.shootYaw = Number(msg.yaw) || player.yaw;
+      player.wantShoot  = 1;
+      player.shootYaw   = Number(msg.yaw)   || player.yaw;
       player.shootPitch = Number(msg.pitch) || player.pitch;
       return;
     }
@@ -281,8 +287,10 @@ wss.on("connection", (ws) => {
   });
 });
 
+// ---- Game tick ----
 setInterval(() => {
   for (const room of rooms.values()) {
+    // Movement
     for (const p of room.players.values()) {
       if (nowMs() - p.lastHeardMs > 30000) {
         try { p.ws.close(); } catch {}
@@ -291,48 +299,36 @@ setInterval(() => {
         continue;
       }
 
-      // normalize input
       let ix = p.inX, iz = p.inZ;
       const il = Math.hypot(ix, iz);
       if (il > 1e-6) { ix /= il; iz /= il; } else { ix = 0; iz = 0; }
 
-      const targetVx = ix * SPEED;
-      const targetVz = iz * SPEED;
-
       if (ix !== 0 || iz !== 0) {
         const t = expSmoothingFactor(ACCEL, DT);
-        p.vx = lerp(p.vx, targetVx, t);
-        p.vz = lerp(p.vz, targetVz, t);
+        p.vx = lerp(p.vx, ix * SPEED, t);
+        p.vz = lerp(p.vz, iz * SPEED, t);
       } else {
         const t = expSmoothingFactor(FRICTION, DT);
         p.vx = lerp(p.vx, 0, t);
         p.vz = lerp(p.vz, 0, t);
       }
 
-      // integrate with collision + clamp to map extents
       const minX = 0.5, maxX = MAP_W * CELL - 0.5;
       const minZ = 0.5, maxZ = MAP_H * CELL - 0.5;
-
-      const newX = clamp(p.x + p.vx * DT, minX, maxX);
-      const newZ = clamp(p.z + p.vz * DT, minZ, maxZ);
-
-      collideAndSlide(p, newX, newZ);
+      collideAndSlide(p, clamp(p.x + p.vx * DT, minX, maxX), clamp(p.z + p.vz * DT, minZ, maxZ));
     }
 
-    // shooting
+    // Shooting
     for (const shooter of room.players.values()) {
       if (!shooter.wantShoot) continue;
       shooter.wantShoot = 0;
       if (shooter.hp <= 0) continue;
 
       const { dx, dz } = yawToDirXZ(shooter.shootYaw);
-
-      let bestId = null;
-      let bestT = Infinity;
+      let bestId = null, bestT = Infinity;
 
       for (const target of room.players.values()) {
-        if (target.id === shooter.id) continue;
-        if (target.hp <= 0) continue;
+        if (target.id === shooter.id || target.hp <= 0) continue;
         const t = rayHitsPlayer(shooter, target, dx, dz, 60);
         if (t !== null && t < bestT) { bestT = t; bestId = target.id; }
       }
@@ -343,7 +339,6 @@ setInterval(() => {
           victim.hp -= DAMAGE;
           if (victim.hp <= 0) {
             victim.hp = 0;
-
             setTimeout(() => {
               if (!room.players.has(victim.id)) return;
               const sp = spawnPoint(room);
@@ -353,7 +348,6 @@ setInterval(() => {
               broadcast(room, { t: "respawn", id: victim.id, x: victim.x, z: victim.z, hp: victim.hp, ts: nowMs() });
             }, RESPAWN_MS);
           }
-
           broadcast(room, { t: "hit", from: shooter.id, to: victim.id, hp: victim.hp, ts: nowMs() });
         }
       }
@@ -361,10 +355,9 @@ setInterval(() => {
       broadcast(room, { t: "shot", id: shooter.id, yaw: shooter.shootYaw, ts: nowMs() });
     }
 
-    // snapshot
+    // State snapshot
     broadcast(room, {
-      t: "state",
-      ts: nowMs(),
+      t: "state", ts: nowMs(),
       players: [...room.players.values()].map(p => ({
         id: p.id, name: p.name, x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp
       }))
