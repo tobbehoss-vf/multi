@@ -178,7 +178,7 @@
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) {
           const t = i / audioCtx.sampleRate;
-          const env = Math.exp(-t * 28);
+          const env = Math.exp(-t * 29);
           d[i] = (Math.random() * 2 - 1) * env * 0.9
                 + Math.sin(2 * Math.PI * 120 * t) * env * 0.4
                 + Math.sin(2 * Math.PI * 60 * t) * env * 0.3;
@@ -771,7 +771,7 @@
       if ((keys.has("Space")) && player.onGround) {
         player.vel.y = JUMP_SPEED;
         player.onGround = false;
-      //  playSound('jump');
+    
       }
 
       // XZ-rörelse
@@ -801,7 +801,7 @@
       // Mark-kollision
       const wasAbove = !player.onGround;
       if (player.pos.y <= floorY) {
-        if (wasAbove && player.vel.y < -3) ; //playSound('land');
+        if (wasAbove && player.vel.y < -3) ;
         player.pos.y = floorY;
         player.vel.y = 0;
         player.onGround = true;
