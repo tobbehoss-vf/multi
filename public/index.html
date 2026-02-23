@@ -139,9 +139,9 @@
 
     // Ladda parallellt – knappen aktiveras när alla tre är klara
     Promise.all([
-      loadSound('/shotgun2.mp3'),  // skottsmäll
-      loadSound('/shotgun3.mp3'),  // hylsa kastas ut
-      loadSound('/shotgun1.mp3'),  // mekaniskt laddljud
+      loadSound('/Shotgun2.mp3'),  // skottsmäll
+      loadSound('/Shotgun3.mp3'),  // hylsa kastas ut
+      loadSound('/Shotgun1.mp3'),  // mekaniskt laddljud
     ]).then(([shoot, shell, reload]) => {
       sounds.shoot  = shoot;
       sounds.shell  = shell;
