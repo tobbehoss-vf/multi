@@ -216,18 +216,68 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.autoClear = true;
+
+    // Färgrymd + tonemapping (grafiklyft utan att ändra gameplay)
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    // Skuggor (mild inställning)
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     document.body.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x4488cc, 20, 140);
-    scene.background = new THREE.Color(0x4488cc);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 200);
-    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
-    const key = new THREE.DirectionalLight(0xffffff, 2.5);
-    key.position.set(6, 12, 4); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 1.2);
-    fill.position.set(-6, 8, -4); scene.add(fill);
+
+    // =========================
+    // Texturer + Skybox
+    // =========================
+    const texLoader = new THREE.TextureLoader();
+    const cubeLoader = new THREE.CubeTextureLoader();
+
+    function loadTex(url) {
+      const t = texLoader.load(url);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      return t;
+    }
+
+    const texWall  = loadTex("/wall.png");
+    const texFloor = loadTex("/floor.png");
+    texFloor.repeat.set(8, 6);
+    texWall.repeat.set(6, 3);
+
+    const sky = cubeLoader.load([
+      "/sky_px.png", "/sky_nx.png",
+      "/sky_py.png", "/sky_ny.png",
+      "/sky_pz.png", "/sky_nz.png",
+    ]);
+    sky.colorSpace = THREE.SRGBColorSpace;
+    scene.background = sky;
+
+    // Fog matchad mot himlen (behåller samma “dimma”-idé som innan)
+    scene.fog = new THREE.Fog(0x88a8cc, 35, 160);
+
+    // =========================
+    // Ljus
+    // =========================
+    scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(6, 12, 4);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far  = 80;
+    scene.add(key);
+
+    const fill = new THREE.DirectionalLight(0xffffff, 0.9);
+    fill.position.set(-6, 8, -4);
+    scene.add(fill);
 
     const controls = new PointerLockControls(camera, document.body);
     scene.add(controls.getObject());
@@ -291,52 +341,78 @@
     }
 
     // =========================
-    // 3D Vapen (child of camera)
+    // 3D Vapen (child of camera) – nu med weapon_wood/weapon_metal
     // =========================
+    const texWeaponWood  = loadTex("/weapon_wood.png");
+    const texWeaponMetal = loadTex("/weapon_metal.png");
+    texWeaponWood.repeat.set(1, 1);
+    texWeaponMetal.repeat.set(1, 1);
+
+    const mMetal = new THREE.MeshStandardMaterial({
+      map: texWeaponMetal,
+      roughness: 0.35,
+      metalness: 0.85,
+    });
+    const mWood = new THREE.MeshStandardMaterial({
+      map: texWeaponWood,
+      roughness: 0.75,
+      metalness: 0.05,
+    });
+    const mHand  = new THREE.MeshStandardMaterial({ color: 0xb86030, roughness: 0.9, metalness: 0.0 });
+    const mHandL = new THREE.MeshStandardMaterial({ color: 0xd07848, roughness: 0.9, metalness: 0.0 });
+
     const weaponGroup = new THREE.Group();
-    const mDark  = new THREE.MeshLambertMaterial({ color: 0x1a1a1f });
-    const mMid   = new THREE.MeshLambertMaterial({ color: 0x2e2e36 });
-    const mLight = new THREE.MeshLambertMaterial({ color: 0x585860 });
-    const mWood  = new THREE.MeshLambertMaterial({ color: 0x3e2010 });
-    const mWoodL = new THREE.MeshLambertMaterial({ color: 0x6e4020 });
-    const mHand  = new THREE.MeshLambertMaterial({ color: 0xb86030 });
-    const mHandL = new THREE.MeshLambertMaterial({ color: 0xd07848 });
 
     function addBox(w, h, d, mat, x, y, z) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-      m.position.set(x,y,z); weaponGroup.add(m);
+      m.position.set(x,y,z);
+      weaponGroup.add(m);
     }
-    addBox(0.055,0.055,1.1,   mDark,  0,      0.005, -0.55);
-    addBox(0.035,0.008,1.08,  mLight, 0,      0.034, -0.55);
-    addBox(0.042,0.042,0.78,  mDark,  0,     -0.052, -0.39);
-    addBox(0.11, 0.10, 0.28,  mDark,  0,      0.005,  0.08);
-    addBox(0.085,0.065,0.24,  mMid,   0,      0.010,  0.08);
-    addBox(0.08, 0.010,0.22,  mLight, 0,      0.052,  0.07);
-    addBox(0.10, 0.068,0.22,  mWood,  0,     -0.018, -0.22);
-    addBox(0.076,0.040,0.18,  mWoodL, 0,     -0.008, -0.22);
-    addBox(0.088,0.088,0.26,  mWood,  0,     -0.004,  0.29);
-    addBox(0.068,0.060,0.22,  mWoodL, 0,      0.004,  0.28);
-    addBox(0.092,0.092,0.014, mDark,  0,     -0.004,  0.42);
-    addBox(0.065,0.13, 0.08,  mWood,  0.006,-0.085,   0.12);
-    addBox(0.046,0.10, 0.06,  mWoodL, 0.006,-0.072,   0.12);
-    addBox(0.088,0.095,0.13,  mHand,  0.042,-0.098,   0.14);
-    addBox(0.065,0.068,0.10,  mHandL, 0.042,-0.088,   0.14);
-    addBox(0.022,0.065,0.022, mHand,  0.018,-0.155,   0.10);
-    addBox(0.022,0.065,0.022, mHand,  0.042,-0.158,   0.10);
-    addBox(0.022,0.060,0.022, mHand,  0.066,-0.152,   0.10);
-    addBox(0.018,0.050,0.022, mHand,  0.088,-0.144,   0.10);
-    addBox(0.022,0.048,0.048, mHand,  0.004,-0.068,   0.08);
-    addBox(0.088,0.075,0.15,  mHand,  0.042,-0.055,  -0.22);
-    addBox(0.065,0.055,0.12,  mHandL, 0.042,-0.048,  -0.22);
-    addBox(0.022,0.058,0.022, mHand,  0.018,-0.115,  -0.26);
-    addBox(0.022,0.058,0.022, mHand,  0.042,-0.118,  -0.26);
-    addBox(0.022,0.052,0.022, mHand,  0.066,-0.112,  -0.26);
-    addBox(0.018,0.044,0.022, mHand,  0.088,-0.105,  -0.26);
+
+    // metall (pipa/receiver)
+    addBox(0.055,0.055,1.1,   mMetal,  0,      0.005, -0.55);
+    addBox(0.035,0.008,1.08,  mMetal,  0,      0.034, -0.55);
+    addBox(0.042,0.042,0.78,  mMetal,  0,     -0.052, -0.39);
+    addBox(0.11, 0.10, 0.28,  mMetal,  0,      0.005,  0.08);
+    addBox(0.085,0.065,0.24,  mMetal,  0,      0.010,  0.08);
+    addBox(0.08, 0.010,0.22,  mMetal,  0,      0.052,  0.07);
+
+    // trä (pump/stock)
+    addBox(0.10, 0.068,0.22,  mWood,   0,     -0.018, -0.22);
+    addBox(0.076,0.040,0.18,  mWood,   0,     -0.008, -0.22);
+    addBox(0.088,0.088,0.26,  mWood,   0,     -0.004,  0.29);
+    addBox(0.068,0.060,0.22,  mWood,   0,      0.004,  0.28);
+
+    // metall liten platta
+    addBox(0.092,0.092,0.014, mMetal,  0,     -0.004,  0.42);
+
+    // trä + händer
+    addBox(0.065,0.13, 0.08,  mWood,   0.006,-0.085,   0.12);
+    addBox(0.046,0.10, 0.06,  mWood,   0.006,-0.072,   0.12);
+
+    addBox(0.088,0.095,0.13,  mHand,   0.042,-0.098,   0.14);
+    addBox(0.065,0.068,0.10,  mHandL,  0.042,-0.088,   0.14);
+    addBox(0.022,0.065,0.022, mHand,   0.018,-0.155,   0.10);
+    addBox(0.022,0.065,0.022, mHand,   0.042,-0.158,   0.10);
+    addBox(0.022,0.060,0.022, mHand,   0.066,-0.152,   0.10);
+    addBox(0.018,0.050,0.022, mHand,   0.088,-0.144,   0.10);
+
+    addBox(0.022,0.048,0.048, mHand,   0.004,-0.068,   0.08);
+
+    addBox(0.088,0.075,0.15,  mHand,   0.042,-0.055,  -0.22);
+    addBox(0.065,0.055,0.12,  mHandL,  0.042,-0.048,  -0.22);
+    addBox(0.022,0.058,0.022, mHand,   0.018,-0.115,  -0.26);
+    addBox(0.022,0.058,0.022, mHand,   0.042,-0.118,  -0.26);
+    addBox(0.022,0.052,0.022, mHand,   0.066,-0.112,  -0.26);
+    addBox(0.018,0.044,0.022, mHand,   0.088,-0.105,  -0.26);
 
     weaponGroup.position.set(0.22, -0.20, -0.30);
     weaponGroup.rotation.y = 0.06;
     weaponGroup.visible = false;
     camera.add(weaponGroup);
+
+    // Vapen ska normalt inte kasta skuggor i FPS
+    weaponGroup.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
 
     const wKeyLight = new THREE.PointLight(0xffffff, 1.5, 3);
     wKeyLight.position.set(0.3, 0.2, -0.1);
@@ -445,10 +521,15 @@
     }
 
     // =========================
-    // Karta
+    // Karta (nu med texturer)
     // =========================
-    const wallMat  = new THREE.MeshLambertMaterial({ color: 0xcc8855 });
-    const floorMat = new THREE.MeshLambertMaterial({ color: 0x444440 });
+    const wallMat  = new THREE.MeshStandardMaterial({
+      map: texWall, roughness: 1.0, metalness: 0.0
+    });
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: texFloor, roughness: 1.0, metalness: 0.0
+    });
+
     const cellSize = 4;
 
     const MAP = [
@@ -480,10 +561,13 @@
     );
     floor.rotation.x = -Math.PI/2;
     floor.position.set((mapW*cellSize)/2, 0, (mapH*cellSize)/2);
+    floor.receiveShadow = true;
     scene.add(floor);
 
     const wallCount = MAP.reduce((n,row) => n + [...row].filter(c => c==='#').length, 0);
     const wallInst  = new THREE.InstancedMesh(new THREE.BoxGeometry(cellSize,6,cellSize), wallMat, wallCount);
+    wallInst.castShadow = true;
+    wallInst.receiveShadow = true;
     scene.add(wallInst);
     let wi = 0;
     const dummy = new THREE.Object3D();
@@ -499,18 +583,23 @@
     // Andra spelare – 3D humanoids
     // =========================
     const others = new Map();
-    const pSkin  = new THREE.MeshLambertMaterial({ color: 0xe8b880 });
-    const pShirt = new THREE.MeshLambertMaterial({ color: 0x2255aa });
-    const pPants = new THREE.MeshLambertMaterial({ color: 0x223366 });
-    const pShoe  = new THREE.MeshLambertMaterial({ color: 0x111111 });
-    const pHair  = new THREE.MeshLambertMaterial({ color: 0x2a1a08 });
-    const pDead  = new THREE.MeshLambertMaterial({ color: 0x444444 });
+    const pSkin  = new THREE.MeshStandardMaterial({ color: 0xe8b880, roughness: 0.95, metalness: 0.0 });
+    const pShirt = new THREE.MeshStandardMaterial({ color: 0x2255aa, roughness: 0.95, metalness: 0.0 });
+    const pPants = new THREE.MeshStandardMaterial({ color: 0x223366, roughness: 0.95, metalness: 0.0 });
+    const pShoe  = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9,  metalness: 0.0 });
+    const pHair  = new THREE.MeshStandardMaterial({ color: 0x2a1a08, roughness: 0.95, metalness: 0.0 });
+    const pDead  = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 1.0,  metalness: 0.0 });
 
     function makeHumanoid() {
       const g = new THREE.Group();
       const add = (geo, mat, x, y, z) => {
         const m = new THREE.Mesh(geo, mat);
-        m.position.set(x,y,z); m.userData.mat = mat; g.add(m); return m;
+        m.position.set(x,y,z);
+        m.userData.mat = mat;
+        m.castShadow = true;
+        m.receiveShadow = false;
+        g.add(m);
+        return m;
       };
       add(new THREE.BoxGeometry(0.42,0.46,0.40), pSkin,  0,     1.68,  0);
       add(new THREE.BoxGeometry(0.44,0.16,0.42), pHair,  0,     1.87,  0);
@@ -528,26 +617,25 @@
       add(new THREE.BoxGeometry(0.24,0.12,0.34), pShoe,   0.15,-0.16,  0.05);
       add(new THREE.BoxGeometry(0.24,0.12,0.34), pShoe,  -0.15,-0.16,  0.05);
 
-      // --- Enemy weapon (synligt vapen på motståndare) ---
+      // Enemy weapon (synligt) med samma wood/metal-texturer
       const gun = new THREE.Group();
-      const gunMat = new THREE.MeshLambertMaterial({ color: 0x15151a });
-      const woodMat = new THREE.MeshLambertMaterial({ color: 0x5a341a });
 
-      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.55), gunMat);
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.55), mMetal);
       barrel.position.set(0, 0, -0.28);
+      barrel.castShadow = true;
       gun.add(barrel);
 
-      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.20), woodMat);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.20), mWood);
       stock.position.set(0, -0.01, 0.12);
+      stock.castShadow = true;
       gun.add(stock);
 
       gun.position.set(0.50, 1.05, -0.05);
       gun.rotation.y = Math.PI;
       gun.rotation.x = -0.1;
-
       g.add(gun);
-      g.userData.gun = gun;
 
+      g.userData.gun = gun;
       return g;
     }
 
@@ -560,7 +648,8 @@
       g.font = "bold 22px Arial, sans-serif"; g.fillStyle = "#fff"; g.textAlign = "center";
       g.fillText(name, 128, 30);
       const tex = new THREE.CanvasTexture(c);
-      tex.magFilter = THREE.LinearFilter; return tex;
+      tex.magFilter = THREE.LinearFilter;
+      return tex;
     }
 
     function ensureOther(id, name) {
@@ -571,7 +660,6 @@
       }));
       label.scale.set(2.2, 0.55, 1); scene.add(label);
 
-      // Muzzle flash light for enemy
       const enemyFlash = new THREE.PointLight(0xff8800, 0, 5);
       enemyFlash.position.set(0.42, 1.10, -0.5);
       humanoid.add(enemyFlash);
@@ -726,7 +814,6 @@
       ws.onmessage = ev => {
         let msg; try { msg = JSON.parse(ev.data); } catch { return; }
 
-        // Scoreboard/pairkills kan komma i många meddelanden
         if (msg.scoreboard) renderScoreboard(msg.scoreboard);
         if (msg.pairKills) renderPairKills(msg.pairKills);
 
@@ -762,7 +849,7 @@
           o.label.material.needsUpdate = true; o.last.name = msg.name; return;
         }
 
-        // ✅ Motståndares skott: tracer + muzzle flash (yaw + pitch)
+        // Motståndares skott: tracer + muzzle flash (yaw + pitch)
         if (msg.t === "shot") {
           if (msg.id === player.id) return;
           const o = others.get(msg.id);
@@ -774,14 +861,12 @@
           const yaw = Number(msg.yaw) || o.last.yaw || 0;
           const pitch = Number(msg.pitch) || o.last.pitch || 0;
 
-          // Samma riktningstänk som i din klient (getWorldDirection): framåt är -Z.
           const dir = new THREE.Vector3(
             -Math.sin(yaw) * Math.cos(pitch),
              Math.sin(pitch),
             -Math.cos(yaw) * Math.cos(pitch)
           ).normalize();
 
-          // Startpunkt: ungefär vid bröst, lite fram
           const from = new THREE.Vector3(o.render.x, 1.25, o.render.z).addScaledVector(dir, 0.9);
           spawnTracer(from, dir);
           return;
