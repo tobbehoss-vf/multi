@@ -167,96 +167,37 @@
     // Ljud – Web Audio API
     // =========================
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const shootBuffer = { buf: null };
+const joinBtn = document.getElementById("join");
+joinBtn.disabled = true;
+joinBtn.textContent = "Laddar...";
+
+fetch('/shoot.wav')
+  .then(r => r.arrayBuffer())
+  .then(ab => audioCtx.decodeAudioData(ab))
+  .then(buf => {
+    shootBuffer.buf = buf;
+    joinBtn.disabled = false;
+    joinBtn.textContent = "Join";
+  })
+  .catch(() => {
+    // Om filen inte hittas, aktivera ändå
+    joinBtn.disabled = false;
+    joinBtn.textContent = "Join";
+  });
 
     function playSound(type){
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const now = audioCtx.currentTime;
-
 if (type === 'shoot') {
-  const now = audioCtx.currentTime;
-  const sr = audioCtx.sampleRate;
-
-  // ── Layer 1: Skarp crack (attack) ──
-  const crackBuf = audioCtx.createBuffer(1, sr * 0.06, sr);
-  const crack = crackBuf.getChannelData(0);
-  for (let i = 0; i < crack.length; i++) {
-    const t = i / sr;
-    crack[i] = (Math.random() * 2 - 1) * Math.exp(-t * 180) * 1.0;
-  }
-  const crackSrc = audioCtx.createBufferSource();
-  crackSrc.buffer = crackBuf;
-  const crackFilter = audioCtx.createBiquadFilter();
-  crackFilter.type = 'highpass';
-  crackFilter.frequency.value = 1800;
-  const crackGain = audioCtx.createGain();
-  crackGain.gain.setValueAtTime(1.4, now);
-  crackSrc.connect(crackFilter);
-  crackFilter.connect(crackGain);
-  crackGain.connect(audioCtx.destination);
-  crackSrc.start(now);
-
-  // ── Layer 2: Boom (bas-kropp) ──
-  const boomOsc = audioCtx.createOscillator();
-  boomOsc.type = 'sine';
-  boomOsc.frequency.setValueAtTime(140, now);
-  boomOsc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
-  const boomGain = audioCtx.createGain();
-  boomGain.gain.setValueAtTime(0, now);
-  boomGain.gain.linearRampToValueAtTime(1.2, now + 0.004);
-  boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-  boomOsc.connect(boomGain);
-  boomGain.connect(audioCtx.destination);
-  boomOsc.start(now);
-  boomOsc.stop(now + 0.25);
-
-  // ── Layer 3: Brus-body (skottsmäll) ──
-  const bodyBuf = audioCtx.createBuffer(1, sr * 0.25, sr);
-  const body = bodyBuf.getChannelData(0);
-  for (let i = 0; i < body.length; i++) {
-    const t = i / sr;
-    body[i] = (Math.random() * 2 - 1) * Math.exp(-t * 22) * 0.8;
-  }
-  const bodySrc = audioCtx.createBufferSource();
-  bodySrc.buffer = bodyBuf;
-  const bodyFilter = audioCtx.createBiquadFilter();
-  bodyFilter.type = 'bandpass';
-  bodyFilter.frequency.value = 400;
-  bodyFilter.Q.value = 0.8;
-  const bodyGain = audioCtx.createGain();
-  bodyGain.gain.setValueAtTime(1.1, now);
-  bodySrc.connect(bodyFilter);
-  bodyFilter.connect(bodyGain);
-  bodyGain.connect(audioCtx.destination);
-  bodySrc.start(now);
-
-  // ── Layer 4: Rumble/reverb-svans ──
-  const tailBuf = audioCtx.createBuffer(1, sr * 0.5, sr);
-  const tail = tailBuf.getChannelData(0);
-  for (let i = 0; i < tail.length; i++) {
-    const t = i / sr;
-    tail[i] = (Math.random() * 2 - 1) * Math.exp(-t * 8) * 0.25;
-  }
-  const tailSrc = audioCtx.createBufferSource();
-  tailSrc.buffer = tailBuf;
-  const tailFilter = audioCtx.createBiquadFilter();
-  tailFilter.type = 'lowpass';
-  tailFilter.frequency.value = 300;
-  const tailGain = audioCtx.createGain();
-  tailGain.gain.setValueAtTime(0.6, now + 0.02);
-  tailSrc.connect(tailFilter);
-  tailFilter.connect(tailGain);
-  tailGain.connect(audioCtx.destination);
-  tailSrc.start(now + 0.02);
-
-  // ── Kompressor så det inte clippar ──
-  const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = -6;
-  comp.ratio.value = 4;
-  crackGain.disconnect(); crackGain.connect(comp);
-  boomGain.disconnect();  boomGain.connect(comp);
-  bodyGain.disconnect();  bodyGain.connect(comp);
-  tailGain.disconnect();  tailGain.connect(comp);
-  comp.connect(audioCtx.destination);
+  if (!shootBuffer.buf) return;
+  const src = audioCtx.createBufferSource();
+  src.buffer = shootBuffer.buf;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.9;
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(audioCtx.currentTime);
 }
       if (type === 'jump') {
         const osc = audioCtx.createOscillator();
