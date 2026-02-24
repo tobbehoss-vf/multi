@@ -465,6 +465,22 @@
     </div>
 
     <script>
+        // Canvas roundRect polyfill
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.beginPath();
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                this.closePath();
+                return this;
+            }
+        }
+
         const socket = io();
         let currentGameId = null;
         let currentPlayerId = null;
@@ -566,27 +582,42 @@
             }, 500);
         }
 
-        // Game input handling
+        // Game input handling - smooth continuous movement
         const keys = {};
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+
         window.addEventListener('keydown', (e) => {
-            keys[e.key.toLowerCase()] = true;
-            
-            if (e.key.toLowerCase() === 'w') socket.emit('movePlayer', 'forward', currentGameId);
-            if (e.key.toLowerCase() === 's') socket.emit('movePlayer', 'backward', currentGameId);
-            if (e.key.toLowerCase() === 'a') socket.emit('movePlayer', 'left', currentGameId);
-            if (e.key.toLowerCase() === 'd') socket.emit('movePlayer', 'right', currentGameId);
+            const key = e.key.toLowerCase();
+            keys[key] = true;
         });
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (!isPlayingGame || !gameState) return;
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            keys[key] = false;
+        });
 
-            const player = gameState.players.find(p => p.id === currentPlayerId);
-            if (player) {
-                const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
-                socket.emit('aim', angle, currentGameId);
+        // Continuous movement input
+        setInterval(() => {
+            if (isPlayingGame && currentGameId) {
+                if (keys['w']) socket.emit('movePlayer', 'forward', currentGameId);
+                if (keys['s']) socket.emit('movePlayer', 'backward', currentGameId);
+                if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
+                if (keys['d']) socket.emit('movePlayer', 'right', currentGameId);
+            }
+        }, 20);
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+
+            if (isPlayingGame && gameState && currentPlayerId) {
+                const player = gameState.players.find(p => p.id === currentPlayerId);
+                if (player) {
+                    const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+                    socket.emit('aim', angle, currentGameId);
+                }
             }
         });
 
@@ -664,17 +695,39 @@
 
             if (!gameState) return;
 
-            // Draw projectiles
-            gameState.projectiles.forEach(proj => {
-                ctx.fillStyle = 'rgba(255, 200, 0, 0.8)';
+            // Draw projectiles with trails
+            gameState.projectiles.forEach((proj, idx) => {
+                // Glow effect
+                const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, 12);
+                gradient.addColorStop(0, 'rgba(255, 200, 0, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(255, 200, 0, 0.3)');
+                gradient.addColorStop(1, 'rgba(255, 200, 0, 0)');
+                
+                ctx.fillStyle = gradient;
                 ctx.beginPath();
-                ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                ctx.arc(proj.x, proj.y, 12, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.strokeStyle = 'rgba(255, 200, 0, 0.4)';
-                ctx.lineWidth = 1;
+                // Core
+                ctx.fillStyle = '#ffff00';
                 ctx.beginPath();
-                ctx.arc(proj.x, proj.y, 8, 0, Math.PI * 2);
+                ctx.arc(proj.x, proj.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Bright center
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Trail line
+                const prevX = proj.x - proj.vx * 3;
+                const prevY = proj.y - proj.vy * 3;
+                ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(prevX, prevY);
+                ctx.lineTo(proj.x, proj.y);
                 ctx.stroke();
             });
 
@@ -682,45 +735,129 @@
             gameState.players.forEach(player => {
                 const color = teamColors[player.teamIndex];
 
-                // Tank body
                 ctx.save();
                 ctx.translate(player.x, player.y);
                 ctx.rotate(player.angle);
 
-                // Hull
-                ctx.fillStyle = color;
-                ctx.fillRect(-20, -15, 40, 30);
+                // Shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(-22, -17, 44, 34);
 
-                // Turret
+                // Tank hull (main body)
                 ctx.fillStyle = color;
                 ctx.beginPath();
-                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.roundRect(-22, -15, 44, 30, 3);
                 ctx.fill();
 
-                // Gun
+                // Hull detail lines
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-20, -12);
+                ctx.lineTo(-20, 12);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(20, -12);
+                ctx.lineTo(20, 12);
+                ctx.stroke();
+
+                // Track pattern (left)
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.lineWidth = 2;
+                for (let i = -14; i <= 14; i += 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(-22, i);
+                    ctx.lineTo(-24, i);
+                    ctx.stroke();
+                }
+
+                // Track pattern (right)
+                for (let i = -14; i <= 14; i += 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(22, i);
+                    ctx.lineTo(24, i);
+                    ctx.stroke();
+                }
+
+                // Turret base (circle)
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(0, 0, 13, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Turret inner detail
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.beginPath();
+                ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Turret shine
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(-3, -3, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Gun barrel (longer and thicker)
                 ctx.strokeStyle = color;
-                ctx.lineWidth = 4;
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.lineTo(25, 0);
+                ctx.lineTo(32, 0);
                 ctx.stroke();
+
+                // Gun shine
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(5, -2);
+                ctx.lineTo(28, -2);
+                ctx.stroke();
+
+                // Muzzle
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(33, 0);
+                ctx.lineTo(36, 0);
+                ctx.stroke();
+
+                // Gun flash (om just skjutit)
+                if (Math.random() > 0.7) {
+                    ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
+                    ctx.beginPath();
+                    ctx.arc(36, 0, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
                 ctx.restore();
 
                 // HP bar above tank
-                const barWidth = 40;
-                const barHeight = 4;
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
+                const barWidth = 50;
+                const barHeight = 5;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 40, barWidth, barHeight);
 
                 ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth * (player.hp / 100), barHeight);
+                ctx.fillRect(player.x - barWidth / 2, player.y - 40, barWidth * (player.hp / 100), barHeight);
+
+                // Border
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(player.x - barWidth / 2, player.y - 40, barWidth, barHeight);
 
                 // Player name
                 ctx.fillStyle = color;
-                ctx.font = 'bold 11px Courier New';
+                ctx.font = 'bold 12px Courier New';
                 ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - 50);
+                ctx.fillText(player.name, player.x, player.y - 52);
+
+                // Alive/Dead indicator
+                if (!player.alive) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                    ctx.font = 'bold 14px Courier New';
+                    ctx.fillText('X', player.x, player.y);
+                }
             });
 
             // Draw borders
