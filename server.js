@@ -44,8 +44,8 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 8;
-    this.vy = Math.sin(angle) * 8;
+    this.vx = Math.cos(angle) * 12; // Ökad från 8
+    this.vy = Math.sin(angle) * 12;
     this.playerId = playerId;
     this.playerName = playerName;
     this.teamIndex = teamIndex;
@@ -272,7 +272,7 @@ io.on('connection', (socket) => {
     const { gameId: pGameId, player } = players[socket.id];
     if (pGameId !== gameId) return;
 
-    const speed = 3;
+    const speed = 5; // Ökad från 3
     const cos = Math.cos(player.angle);
     const sin = Math.sin(player.angle);
 
@@ -283,14 +283,14 @@ io.on('connection', (socket) => {
       player.x -= cos * speed;
       player.y -= sin * speed;
     } else if (direction === 'left') {
-      player.angle -= 0.05;
+      player.angle -= 0.08; // Snabbare rotation
     } else if (direction === 'right') {
-      player.angle += 0.05;
+      player.angle += 0.08;
     }
 
     // Keep player in bounds
-    player.x = Math.max(20, Math.min(780, player.x));
-    player.y = Math.max(20, Math.min(580, player.y));
+    player.x = Math.max(30, Math.min(770, player.x));
+    player.y = Math.max(30, Math.min(570, player.y));
   });
 
   socket.on('aim', (angle, gameId) => {
