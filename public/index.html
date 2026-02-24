@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tank Battle</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Courier New', monospace; background: #0a0a15; color: #fff; overflow: hidden; height: 100vh; }
@@ -131,8 +130,9 @@
         </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        const socket = io();
+        let socket;
         let gameState = null;
         let currentGameId = null;
         let currentPlayerId = null;
@@ -152,19 +152,35 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Socket connection logging
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
+        // Initialize socket after page loads
+        window.addEventListener('load', () => {
+            if (typeof io === 'undefined') {
+                console.error('Socket.IO library not loaded!');
+                return;
+            }
 
-        socket.on('disconnect', () => {
-            console.log('Disconnected from server');
-        });
+            socket = io();
 
-        socket.on('gameStateUpdate', (state) => {
-            console.log('Received gameStateUpdate:', state.players.length, 'players');
-            gameState = state;
-            updateUI();
+            socket.on('connect', () => {
+                console.log('Connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+            });
+
+            socket.on('gameStateUpdate', (state) => {
+                console.log('Received gameStateUpdate:', state.players.length, 'players');
+                gameState = state;
+                updateUI();
+            });
+
+            socket.on('gameStarted', () => {
+                console.log('Game started!');
+            });
+
+            getGames();
+            setInterval(getGames, 3000);
         });
 
         // Rendering
@@ -219,13 +235,26 @@
                 ctx.stroke();
             }
 
-            // Draw projectiles
+            // Draw projectiles BEFORE players
             if (gameState.projectiles && gameState.projectiles.length > 0) {
                 gameState.projectiles.forEach(p => {
+                    // Glow effect
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
+                    grad.addColorStop(0, 'rgba(255, 255, 0, 0.9)');
+                    grad.addColorStop(0.7, 'rgba(255, 150, 0, 0.3)');
+                    grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Core yellow
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
                     ctx.fill();
+
+                    // White center
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
@@ -294,7 +323,7 @@
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
         setInterval(() => {
-            if (isPlaying && currentGameId) {
+            if (isPlaying && currentGameId && socket) {
                 if (keys['w']) socket.emit('movePlayer', 'forward', currentGameId);
                 if (keys['s']) socket.emit('movePlayer', 'backward', currentGameId);
                 if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
@@ -303,7 +332,7 @@
         }, 30);
 
         canvas.addEventListener('mousemove', e => {
-            if (!isPlaying || !gameState || !currentPlayerId) return;
+            if (!isPlaying || !gameState || !currentPlayerId || !socket) return;
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
@@ -326,12 +355,12 @@
         });
 
         canvas.addEventListener('click', () => {
-            if (isPlaying) socket.emit('shoot', currentGameId);
+            if (isPlaying && socket) socket.emit('shoot', currentGameId);
         });
 
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
-            if (isPlaying) socket.emit('reload', currentGameId);
+            if (isPlaying && socket) socket.emit('reload', currentGameId);
         });
 
         function updateUI() {
@@ -359,6 +388,7 @@
         }
 
         function getGames() {
+            if (!socket) return;
             socket.emit('getGames', games => {
                 const list = document.getElementById('gameList');
                 const sel = document.getElementById('selectedGame');
@@ -388,6 +418,7 @@
         }
 
         function createGame() {
+            if (!socket) return;
             socket.emit('createGame', 0, id => {
                 currentGameId = id;
                 console.log('Created game:', id);
@@ -396,6 +427,7 @@
         }
 
         function joinGame() {
+            if (!socket) return;
             const gid = document.getElementById('selectedGame').value;
             if (!gid) return;
 
@@ -422,15 +454,14 @@
             currentPlayerId = null;
             document.getElementById('lobbyScreen').style.display = 'flex';
             document.getElementById('gameContainer').style.display = 'none';
-            socket.disconnect();
-            setTimeout(() => {
-                socket.connect();
-                getGames();
-            }, 500);
+            if (socket) {
+                socket.disconnect();
+                setTimeout(() => {
+                    socket.connect();
+                    getGames();
+                }, 500);
+            }
         }
-
-        getGames();
-        setInterval(getGames, 3000);
     </script>
 </body>
 </html>
