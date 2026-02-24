@@ -152,10 +152,11 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Initialize socket after page loads
-        window.addEventListener('load', () => {
+        // Initialize socket
+        function initSocket() {
             if (typeof io === 'undefined') {
                 console.error('Socket.IO library not loaded!');
+                setTimeout(initSocket, 100);
                 return;
             }
 
@@ -163,6 +164,7 @@
 
             socket.on('connect', () => {
                 console.log('Connected to server');
+                getGames();
             });
 
             socket.on('disconnect', () => {
@@ -181,10 +183,84 @@
             socket.on('gameStarted', () => {
                 console.log('Game started!');
             });
+        }
 
-            getGames();
-            setInterval(getGames, 3000);
-        });
+        // Game functions - GLOBAL so they can be called from HTML
+        function getGames() {
+            if (!socket) return;
+            socket.emit('getGames', games => {
+                const list = document.getElementById('gameList');
+                const sel = document.getElementById('selectedGame');
+                list.innerHTML = '';
+                sel.innerHTML = '';
+
+                if (games.length === 0) {
+                    list.innerHTML = '<p style="color: #666;">Inga spel</p>';
+                } else {
+                    games.forEach(g => {
+                        const div = document.createElement('div');
+                        div.className = 'game-item';
+                        div.innerHTML = `Spel ${g.id.slice(-6)} - ${g.playerCount}/8`;
+                        list.appendChild(div);
+
+                        const opt = document.createElement('option');
+                        opt.value = g.id;
+                        opt.textContent = `Spel ${g.id.slice(-6)} (${g.playerCount}/8)`;
+                        sel.appendChild(opt);
+                    });
+                }
+
+                if (!sel.value && games.length > 0) {
+                    sel.value = games[0].id;
+                }
+            });
+        }
+
+        function createGame() {
+            if (!socket) return;
+            socket.emit('createGame', 0, id => {
+                currentGameId = id;
+                console.log('Created game:', id);
+                setTimeout(getGames, 100);
+            });
+        }
+
+        function joinGame() {
+            if (!socket) return;
+            const gid = document.getElementById('selectedGame').value;
+            if (!gid) return;
+
+            socket.emit('joinGame', gid, {
+                name: document.getElementById('playerName').value || 'Player',
+                teamIndex: parseInt(document.getElementById('teamIndex').value),
+                tankType: document.getElementById('tankType').value
+            }, result => {
+                console.log('Join result:', result);
+                if (result.success) {
+                    currentGameId = gid;
+                    currentPlayerId = result.playerId;
+                    isPlaying = true;
+                    document.getElementById('lobbyScreen').style.display = 'none';
+                    document.getElementById('gameContainer').style.display = 'flex';
+                    console.log('Game started with player ID:', result.playerId);
+                }
+            });
+        }
+
+        function leaveGame() {
+            isPlaying = false;
+            currentGameId = null;
+            currentPlayerId = null;
+            document.getElementById('lobbyScreen').style.display = 'flex';
+            document.getElementById('gameContainer').style.display = 'none';
+            if (socket) {
+                socket.disconnect();
+                setTimeout(() => {
+                    socket.connect();
+                    getGames();
+                }, 500);
+            }
+        }
 
         // Rendering
         function render() {
@@ -390,45 +466,13 @@
                 .join('');
         }
 
-        function getGames() {
-            if (!socket) return;
-            socket.emit('getGames', games => {
-                const list = document.getElementById('gameList');
-                const sel = document.getElementById('selectedGame');
-                list.innerHTML = '';
-                sel.innerHTML = '';
+        // Start socket initialization
+        initSocket();
 
-                if (games.length === 0) {
-                    list.innerHTML = '<p style="color: #666;">Inga spel</p>';
-                } else {
-                    games.forEach(g => {
-                        const div = document.createElement('div');
-                        div.className = 'game-item';
-                        div.innerHTML = `Spel ${g.id.slice(-6)} - ${g.playerCount}/8`;
-                        list.appendChild(div);
-
-                        const opt = document.createElement('option');
-                        opt.value = g.id;
-                        opt.textContent = `Spel ${g.id.slice(-6)} (${g.playerCount}/8)`;
-                        sel.appendChild(opt);
-                    });
-                }
-
-                if (!sel.value && games.length > 0) {
-                    sel.value = games[0].id;
-                }
-            });
-        }
-
-        function createGame() {
-            if (!socket) return;
-            socket.emit('createGame', 0, id => {
-                currentGameId = id;
-                console.log('Created game:', id);
-                setTimeout(getGames, 100);
-            });
-        }
-
-        function joinGame() {
-            if (!socket) return;
-            const gid = document
+        // Refresh game list periodically
+        setInterval(() => {
+            if (socket && !isPlaying) getGames();
+        }, 3000);
+    </script>
+</body>
+</html>
