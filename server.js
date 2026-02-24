@@ -44,14 +44,15 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 12; // Ökad från 8
-    this.vy = Math.sin(angle) * 12;
+    this.vx = Math.cos(angle) * 15; // Ökad från 12
+    this.vy = Math.sin(angle) * 15;
     this.playerId = playerId;
     this.playerName = playerName;
     this.teamIndex = teamIndex;
     this.damage = 20;
     this.lifetime = 500; // frames
     this.age = 0;
+    console.log(`Projectile created: angle=${angle.toFixed(2)}, vx=${this.vx.toFixed(2)}, vy=${this.vy.toFixed(2)}`);
   }
 }
 
@@ -133,6 +134,7 @@ class Game {
 
       // Check if projectile is out of bounds or expired
       if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
+        console.log(`Projectile expired at age ${proj.age}`);
         this.projectiles.splice(i, 1);
         continue;
       }
@@ -148,6 +150,7 @@ class Game {
 
         if (dist < 30) {
           // Hit!
+          console.log(`Hit! ${proj.playerName} hit ${target.name}`);
           target.hp -= proj.damage;
 
           if (target.hp <= 0) {
@@ -159,6 +162,7 @@ class Game {
             if (shooter) {
               shooter.kills++;
               this.scores[proj.teamIndex] += 20;
+              console.log(`Kill! ${shooter.name} killed ${target.name}`);
             }
           } else {
             this.scores[proj.teamIndex] += 1;
@@ -265,6 +269,13 @@ io.on('connection', (socket) => {
     io.to(gameId).emit('playerJoined', { name: playerData.name, teamIndex: playerData.teamIndex });
 
     callback({ success: true, playerId: socket.id });
+
+    // Starta spelet automatiskt om vi har minst en spelare
+    if (game.canStartGame() && game.state === 'lobby') {
+      game.startGame();
+      io.to(gameId).emit('gameStateUpdate', game.getGameState());
+      io.to(gameId).emit('gameStarted');
+    }
   });
 
   socket.on('movePlayer', (direction, gameId) => {
@@ -307,6 +318,11 @@ io.on('connection', (socket) => {
     if (!player.alive || player.isReloading || player.ammo <= 0) return;
 
     const game = games[gameId];
+    if (!game) {
+      console.log('Game not found for shoot:', gameId);
+      return;
+    }
+
     const projectile = new Projectile(
       player.x,
       player.y,
@@ -317,6 +333,8 @@ io.on('connection', (socket) => {
     );
     game.projectiles.push(projectile);
     player.ammo--;
+
+    console.log(`Shoot: created projectile, now ${game.projectiles.length} projectiles in game`);
 
     if (player.ammo === 0) {
       player.isReloading = true;
@@ -373,7 +391,11 @@ setInterval(() => {
   for (let gameId in games) {
     const game = games[gameId];
     game.update();
-    io.to(gameId).emit('gameStateUpdate', game.getGameState());
+    const state = game.getGameState();
+    if (state.projectiles.length > 0) {
+      console.log(`Game ${gameId}: ${state.players.length} players, ${state.projectiles.length} projectiles, state=${state.state}`);
+    }
+    io.to(gameId).emit('gameStateUpdate', state);
   }
 }, 1000 / 60); // 60 FPS
 
