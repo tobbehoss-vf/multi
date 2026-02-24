@@ -265,6 +265,13 @@ io.on('connection', (socket) => {
     io.to(gameId).emit('playerJoined', { name: playerData.name, teamIndex: playerData.teamIndex });
 
     callback({ success: true, playerId: socket.id });
+
+    // Starta spelet automatiskt om vi har minst en spelare
+    if (game.canStartGame() && game.state === 'lobby') {
+      game.startGame();
+      io.to(gameId).emit('gameStateUpdate', game.getGameState());
+      io.to(gameId).emit('gameStarted');
+    }
   });
 
   socket.on('movePlayer', (direction, gameId) => {
