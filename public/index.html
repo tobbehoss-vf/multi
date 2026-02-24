@@ -1,382 +1,841 @@
-const express = require('express');
-const http = require('http');
-const socketIO = require('socket.io');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank Battle Arena</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIO(server, {
-  cors: { origin: "*" }
-});
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a3e 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
 
-app.use(express.static('public'));
-app.use(express.json());
+        #mainContainer {
+            display: flex;
+            height: 100vh;
+        }
 
-const PORT = process.env.PORT || 3000;
+        #lobby {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            padding: 40px;
+            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a3e 100%);
+            justify-content: center;
+            align-items: center;
+        }
 
-// Game state
-const games = {};
-const players = {};
+        .lobby-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
 
-class Player {
-  constructor(id, name, teamIndex, tankType) {
-    this.id = id;
-    this.name = name;
-    this.teamIndex = teamIndex;
-    this.tankType = tankType;
-    this.x = 0;
-    this.y = 0;
-    this.angle = 0;
-    this.hp = 100;
-    this.maxHp = 100;
-    this.lives = 3;
-    this.kills = 0;
-    this.deaths = 0;
-    this.ammo = 10;
-    this.maxAmmo = 10;
-    this.isReloading = false;
-    this.reloadStartTime = 0;
-    this.alive = true;
-  }
-}
+        .lobby-header h1 {
+            font-size: 4em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px #00ff88;
+            color: #00ff88;
+            letter-spacing: 3px;
+        }
 
-class Projectile {
-  constructor(x, y, angle, playerId, playerName, teamIndex) {
-    this.x = x;
-    this.y = y;
-    this.vx = Math.cos(angle) * 12; // Ökad från 8
-    this.vy = Math.sin(angle) * 12;
-    this.playerId = playerId;
-    this.playerName = playerName;
-    this.teamIndex = teamIndex;
-    this.damage = 20;
-    this.lifetime = 500; // frames
-    this.age = 0;
-  }
-}
+        .lobby-header p {
+            font-size: 1.2em;
+            color: #00ffff;
+            opacity: 0.8;
+        }
 
-class Game {
-  constructor(gameId, mapId) {
-    this.gameId = gameId;
-    this.mapId = mapId || 0;
-    this.players = {};
-    this.projectiles = [];
-    this.state = 'lobby'; // 'lobby', 'playing'
-    this.teamCounts = [0, 0, 0, 0];
-    this.scores = [0, 0, 0, 0];
-    this.gameStartTime = null;
-    this.mapIndex = mapId || 0;
-  }
+        .lobby-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            width: 100%;
+            max-width: 1200px;
+        }
 
-  addPlayer(player) {
-    this.players[player.id] = player;
-    this.teamCounts[player.teamIndex]++;
-  }
+        .games-list {
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 20px;
+        }
 
-  removePlayer(playerId) {
-    const player = this.players[playerId];
-    if (player) {
-      this.teamCounts[player.teamIndex]--;
-      delete this.players[playerId];
-    }
-  }
+        .games-list h2 {
+            margin-bottom: 20px;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
 
-  canStartGame() {
-    return Object.keys(this.players).length >= 2;
-  }
+        .game-item {
+            background: rgba(0, 255, 136, 0.05);
+            border-left: 3px solid #00ffff;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 4px;
+        }
 
-  startGame() {
-    this.state = 'playing';
-    this.gameStartTime = Date.now();
-    this.spawnAllPlayers();
-  }
+        .game-item:hover {
+            background: rgba(0, 255, 136, 0.15);
+            transform: translateX(5px);
+        }
 
-  spawnAllPlayers() {
-    const spawnPoints = this.getSpawnPoints();
-    let spawnIndex = 0;
-    
-    for (let playerId in this.players) {
-      const player = this.players[playerId];
-      const spawn = spawnPoints[spawnIndex % spawnPoints.length];
-      player.x = spawn.x;
-      player.y = spawn.y;
-      player.angle = spawn.angle || 0;
-      player.hp = player.maxHp;
-      player.alive = true;
-      spawnIndex++;
-    }
-  }
+        .game-item strong {
+            color: #00ffff;
+        }
 
-  getSpawnPoints() {
-    const points = [
-      { x: 100, y: 100, angle: 0 },
-      { x: 700, y: 100, angle: Math.PI },
-      { x: 100, y: 500, angle: Math.PI / 2 },
-      { x: 700, y: 500, angle: -Math.PI / 2 },
-      { x: 400, y: 100, angle: 0 },
-      { x: 400, y: 500, angle: Math.PI },
-      { x: 100, y: 300, angle: Math.PI / 2 },
-      { x: 700, y: 300, angle: -Math.PI / 2 }
-    ];
-    return points;
-  }
+        .create-game-section {
+            background: rgba(0, 100, 255, 0.1);
+            border: 2px solid #0064ff;
+            border-radius: 8px;
+            padding: 20px;
+        }
 
-  update() {
-    if (this.state !== 'playing') return;
+        .create-game-section h2 {
+            margin-bottom: 20px;
+            color: #0064ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
 
-    // Update projectiles
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      const proj = this.projectiles[i];
-      proj.x += proj.vx;
-      proj.y += proj.vy;
-      proj.age++;
+        .form-group {
+            margin-bottom: 15px;
+        }
 
-      // Check if projectile is out of bounds or expired
-      if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
-        this.projectiles.splice(i, 1);
-        continue;
-      }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #00ffff;
+            font-weight: bold;
+        }
 
-      // Check collision with players
-      for (let playerId in this.players) {
-        const target = this.players[playerId];
-        if (target.id === proj.playerId || !target.alive) continue;
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid #0064ff;
+            color: #fff;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
 
-        const dx = target.x - proj.x;
-        const dy = target.y - proj.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
 
-        if (dist < 30) {
-          // Hit!
-          target.hp -= proj.damage;
+        button {
+            background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'Courier New', monospace;
+        }
 
-          if (target.hp <= 0) {
-            target.hp = 0;
-            target.alive = false;
-            target.deaths++;
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+        }
 
-            const shooter = this.players[proj.playerId];
-            if (shooter) {
-              shooter.kills++;
-              this.scores[proj.teamIndex] += 20;
+        button:active {
+            transform: scale(0.95);
+        }
+
+        #gameContainer {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .game-header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            border-bottom: 2px solid #00ff88;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .team-score {
+            display: flex;
+            gap: 30px;
+            flex: 1;
+        }
+
+        .team-score-item {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .team-blue { color: #0099ff; border: 2px solid #0099ff; }
+        .team-red { color: #ff3333; border: 2px solid #ff3333; }
+        .team-yellow { color: #ffff00; border: 2px solid #ffff00; }
+        .team-green { color: #00ff88; border: 2px solid #00ff88; }
+
+        .player-info {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .player-name {
+            font-size: 1.1em;
+            color: #00ffff;
+        }
+
+        .game-content {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        #gameCanvas {
+            flex: 1;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 2px solid #00ff88;
+            border-radius: 4px;
+            cursor: crosshair;
+            image-rendering: pixelated;
+        }
+
+        .game-sidebar {
+            width: 250px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #00ff88;
+            border-radius: 4px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar-section h3 {
+            color: #00ff88;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #00ff88;
+            padding-bottom: 8px;
+        }
+
+        .scoreboard-entry {
+            background: rgba(0, 255, 136, 0.05);
+            padding: 8px;
+            border-left: 2px solid #00ffff;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            border-radius: 2px;
+        }
+
+        .scoreboard-entry .name {
+            color: #00ffff;
+            font-weight: bold;
+        }
+
+        .scoreboard-entry .stats {
+            color: #00ff88;
+            font-size: 0.85em;
+            margin-top: 3px;
+        }
+
+        .controls {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border: 1px solid #00ff88;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+
+        .controls p {
+            margin-bottom: 8px;
+            color: #00ffff;
+        }
+
+        .controls strong {
+            color: #00ff88;
+        }
+
+        .ammo-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ffff;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .ammo-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88 0%, #00ffff 100%);
+            width: 100%;
+            transition: width 0.1s;
+        }
+
+        .hp-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #ff3333;
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff3333 0%, #ff9933 100%);
+            width: 100%;
+            transition: width 0.1s;
+        }
+
+        .team-label {
+            display: inline-block;
+            padding: 2px 6px;
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 2px;
+            font-size: 0.8em;
+            margin-top: 4px;
+        }
+
+        #lobbyScreen {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+    <div id="mainContainer">
+        <div id="lobbyScreen">
+            <div id="lobby">
+                <div class="lobby-header">
+                    <h1>⚔ TANK BATTLE ⚔</h1>
+                    <p>Multiplayer Arena - Max 8 spelare</p>
+                </div>
+
+                <div class="lobby-content">
+                    <div class="games-list">
+                        <h2>Tillgängliga spel</h2>
+                        <div id="gamesList"></div>
+                        <button onclick="createGame()" style="width: 100%; margin-top: 20px;">+ Skapa nytt spel</button>
+                    </div>
+
+                    <div class="create-game-section">
+                        <h2>Gå med i spel</h2>
+                        <div class="form-group">
+                            <label>Spelarnamn</label>
+                            <input type="text" id="playerName" placeholder="Ditt namn" value="Player">
+                        </div>
+                        <div class="form-group">
+                            <label>Välj tank</label>
+                            <select id="tankType">
+                                <option value="classic">Classic Tank</option>
+                                <option value="heavy">Heavy Tank</option>
+                                <option value="scout">Scout Tank</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Välj lag</label>
+                            <select id="teamIndex">
+                                <option value="0">Blåa laget</option>
+                                <option value="1">Röda laget</option>
+                                <option value="2">Gula laget</option>
+                                <option value="3">Gröna laget</option>
+                            </select>
+                        </div>
+                        <div id="gameSelection" style="margin-top: 20px;">
+                            <label>Spel att gå med i:</label>
+                            <select id="selectedGame" style="margin-top: 10px; margin-bottom: 10px;"></select>
+                            <button onclick="joinGame()" style="width: 100%;">Gå med i spel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="gameContainer">
+            <div class="game-header">
+                <div class="team-score">
+                    <div class="team-score-item team-blue">BLÅ: <span id="scoreBlue">0</span></div>
+                    <div class="team-score-item team-red">RÖD: <span id="scoreRed">0</span></div>
+                    <div class="team-score-item team-yellow">GUL: <span id="scoreYellow">0</span></div>
+                    <div class="team-score-item team-green">GRÖN: <span id="scoreGreen">0</span></div>
+                </div>
+                <div class="player-info">
+                    <span class="player-name" id="currentPlayerName"></span>
+                    <button onclick="leaveGame()" style="padding: 8px 16px;">Lämna</button>
+                </div>
+            </div>
+
+            <div class="game-content">
+                <canvas id="gameCanvas"></canvas>
+
+                <div class="game-sidebar">
+                    <div class="sidebar-section">
+                        <h3>Din tank</h3>
+                        <div>
+                            <strong id="playerHealth">100</strong> / 100 HP
+                            <div class="hp-bar">
+                                <div class="hp-fill" id="hpBar" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            Ammo: <strong id="playerAmmo">10</strong> / 10
+                            <div class="ammo-bar">
+                                <div class="ammo-fill" id="ammoBar" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            Liv: <strong id="playerLives">3</strong>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <h3>Scoreboard</h3>
+                        <div id="scoreboard"></div>
+                    </div>
+
+                    <div class="sidebar-section controls">
+                        <p><strong>W/A/S/D</strong> - Flytta</p>
+                        <p><strong>Mus</strong> - Sikta</p>
+                        <p><strong>Vänsterkl</strong> - Skjut</p>
+                        <p><strong>Högerkl</strong> - Ladda om</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas roundRect polyfill
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.beginPath();
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                this.closePath();
+                return this;
             }
-          } else {
-            this.scores[proj.teamIndex] += 1;
-          }
-
-          this.projectiles.splice(i, 1);
-          break;
         }
-      }
-    }
 
-    // Respawn dead players
-    for (let playerId in this.players) {
-      const player = this.players[playerId];
-      if (!player.alive && player.lives > 0) {
-        player.lives--;
-        if (player.lives >= 0) {
-          const spawnPoints = this.getSpawnPoints();
-          const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
-          player.x = spawn.x;
-          player.y = spawn.y;
-          player.hp = player.maxHp;
-          player.alive = true;
+        const socket = io();
+        let currentGameId = null;
+        let currentPlayerId = null;
+        let gameState = null;
+        let isPlayingGame = false;
+
+        const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
+        const teamNames = ['Blå', 'Röd', 'Gul', 'Grön'];
+
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
         }
-      }
-    }
-  }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
 
-  getGameState() {
-    return {
-      state: this.state,
-      players: Object.values(this.players).map(p => ({
-        id: p.id,
-        name: p.name,
-        x: p.x,
-        y: p.y,
-        angle: p.angle,
-        hp: p.hp,
-        maxHp: p.maxHp,
-        lives: p.lives,
-        kills: p.kills,
-        deaths: p.deaths,
-        ammo: p.ammo,
-        maxAmmo: p.maxAmmo,
-        alive: p.alive,
-        teamIndex: p.teamIndex,
-        tankType: p.tankType
-      })),
-      projectiles: this.projectiles.map(p => ({
-        x: p.x,
-        y: p.y,
-        vx: p.vx,
-        vy: p.vy
-      })),
-      scores: this.scores,
-      mapIndex: this.mapIndex
-    };
-  }
-}
+        // Game map dimensions
+        const MAP_WIDTH = 800;
+        const MAP_HEIGHT = 600;
 
-// Socket connections
-io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+        function render() {
+            // Clear
+            ctx.fillStyle = 'rgba(26, 26, 46, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  socket.on('getGames', (callback) => {
-    const gameList = Object.keys(games).map(id => ({
-      id,
-      playerCount: Object.keys(games[id].players).length,
-      state: games[id].state
-    }));
-    callback(gameList);
-  });
+            // Perspective background
+            ctx.fillStyle = 'rgba(20, 20, 40, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
 
-  socket.on('createGame', (mapId, callback) => {
-    const gameId = 'game_' + Date.now();
-    const game = new Game(gameId, mapId || 0);
-    games[gameId] = game;
-    callback(gameId);
-  });
+            if (!gameState) return;
 
-  socket.on('joinGame', (gameId, playerData, callback) => {
-    if (!games[gameId]) {
-      callback({ success: false, error: 'Game not found' });
-      return;
-    }
+            // Calculate scale
+            const scaleX = (canvas.width * 0.85) / MAP_WIDTH;
+            const scaleY = (canvas.height * 0.85) / MAP_HEIGHT;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const offsetX = (canvas.width - MAP_WIDTH * scale) / 2;
+            const offsetY = (canvas.height - MAP_HEIGHT * scale) / 2 + 30;
 
-    const game = games[gameId];
-    if (game.state !== 'lobby') {
-      callback({ success: false, error: 'Game already started' });
-      return;
-    }
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
 
-    if (game.teamCounts[playerData.teamIndex] >= 2) {
-      callback({ success: false, error: 'Team is full' });
-      return;
-    }
+            // Draw grid
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.08)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= MAP_WIDTH; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, MAP_HEIGHT);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= MAP_HEIGHT; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(MAP_WIDTH, i);
+                ctx.stroke();
+            }
 
-    const player = new Player(socket.id, playerData.name, playerData.teamIndex, playerData.tankType);
-    game.addPlayer(player);
-    players[socket.id] = { gameId, player };
+            // Draw projectiles
+            gameState.projectiles.forEach(proj => {
+                // Glow
+                const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, 15);
+                gradient.addColorStop(0, 'rgba(255, 200, 0, 0.9)');
+                gradient.addColorStop(0.5, 'rgba(255, 150, 0, 0.4)');
+                gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 15, 0, Math.PI * 2);
+                ctx.fill();
 
-    socket.join(gameId);
-    io.to(gameId).emit('gameStateUpdate', game.getGameState());
-    io.to(gameId).emit('playerJoined', { name: playerData.name, teamIndex: playerData.teamIndex });
+                // Core
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 8, 0, Math.PI * 2);
+                ctx.fill();
 
-    callback({ success: true, playerId: socket.id });
-  });
+                // Center
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                ctx.fill();
 
-  socket.on('movePlayer', (direction, gameId) => {
-    if (!players[socket.id]) return;
-    const { gameId: pGameId, player } = players[socket.id];
-    if (pGameId !== gameId) return;
+                // Trail
+                ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(proj.x - proj.vx * 5, proj.y - proj.vy * 5);
+                ctx.lineTo(proj.x, proj.y);
+                ctx.stroke();
+            });
 
-    const speed = 5; // Ökad från 3
-    const cos = Math.cos(player.angle);
-    const sin = Math.sin(player.angle);
+            // Draw players
+            gameState.players.forEach(player => {
+                const color = teamColors[player.teamIndex];
 
-    if (direction === 'forward') {
-      player.x += cos * speed;
-      player.y += sin * speed;
-    } else if (direction === 'backward') {
-      player.x -= cos * speed;
-      player.y -= sin * speed;
-    } else if (direction === 'left') {
-      player.angle -= 0.08; // Snabbare rotation
-    } else if (direction === 'right') {
-      player.angle += 0.08;
-    }
+                ctx.save();
+                ctx.translate(player.x, player.y);
+                ctx.rotate(player.angle);
 
-    // Keep player in bounds
-    player.x = Math.max(30, Math.min(770, player.x));
-    player.y = Math.max(30, Math.min(570, player.y));
-  });
+                // Shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(-22, -17, 44, 34);
 
-  socket.on('aim', (angle, gameId) => {
-    if (!players[socket.id]) return;
-    const { gameId: pGameId, player } = players[socket.id];
-    if (pGameId !== gameId) return;
-    player.angle = angle;
-  });
+                // Tank hull
+                ctx.fillStyle = color;
+                ctx.fillRect(-20, -12, 40, 24);
 
-  socket.on('shoot', (gameId) => {
-    if (!players[socket.id]) return;
-    const { gameId: pGameId, player } = players[socket.id];
-    if (pGameId !== gameId) return;
-    if (!player.alive || player.isReloading || player.ammo <= 0) return;
+                // Hull details
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-18, -9);
+                ctx.lineTo(-18, 9);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(18, -9);
+                ctx.lineTo(18, 9);
+                ctx.stroke();
 
-    const game = games[gameId];
-    const projectile = new Projectile(
-      player.x,
-      player.y,
-      player.angle,
-      player.id,
-      player.name,
-      player.teamIndex
-    );
-    game.projectiles.push(projectile);
-    player.ammo--;
+                // Tracks
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.lineWidth = 2;
+                for (let i = -10; i <= 10; i += 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(-20, i);
+                    ctx.lineTo(-22, i);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(20, i);
+                    ctx.lineTo(22, i);
+                    ctx.stroke();
+                }
 
-    if (player.ammo === 0) {
-      player.isReloading = true;
-      player.reloadStartTime = Date.now();
-    }
+                // Turret
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(0, 0, 11, 0, Math.PI * 2);
+                ctx.fill();
 
-    io.to(gameId).emit('gameStateUpdate', game.getGameState());
-  });
+                // Turret shine
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(-3, -3, 3, 0, Math.PI * 2);
+                ctx.fill();
 
-  socket.on('reload', (gameId) => {
-    if (!players[socket.id]) return;
-    const { gameId: pGameId, player } = players[socket.id];
-    if (pGameId !== gameId) return;
+                // Gun barrel
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(28, 0);
+                ctx.stroke();
 
-    if (player.ammo < player.maxAmmo) {
-      player.isReloading = true;
-      player.reloadStartTime = Date.now();
-      setTimeout(() => {
-        player.ammo = player.maxAmmo;
-        player.isReloading = false;
-        io.to(gameId).emit('gameStateUpdate', games[gameId].getGameState());
-      }, 2000);
-    }
-  });
+                // Gun shine
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(5, -2);
+                ctx.lineTo(25, -2);
+                ctx.stroke();
 
-  socket.on('startGame', (gameId, callback) => {
-    const game = games[gameId];
-    if (game && game.canStartGame()) {
-      game.startGame();
-      io.to(gameId).emit('gameStateUpdate', game.getGameState());
-      io.to(gameId).emit('gameStarted');
-      callback({ success: true });
-    } else {
-      callback({ success: false });
-    }
-  });
+                ctx.restore();
 
-  socket.on('disconnect', () => {
-    if (players[socket.id]) {
-      const { gameId, player } = players[socket.id];
-      const game = games[gameId];
-      if (game) {
-        game.removePlayer(socket.id);
-        io.to(gameId).emit('gameStateUpdate', game.getGameState());
-      }
-      delete players[socket.id];
-    }
-    console.log('Player disconnected:', socket.id);
-  });
-});
+                // HP bar
+                const barWidth = 50;
+                const barHeight = 5;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
 
-// Game loop
-setInterval(() => {
-  for (let gameId in games) {
-    const game = games[gameId];
-    game.update();
-    io.to(gameId).emit('gameStateUpdate', game.getGameState());
-  }
-}, 1000 / 60); // 60 FPS
+                ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth * (player.hp / 100), barHeight);
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
+
+                // Name
+                ctx.fillStyle = color;
+                ctx.font = 'bold 11px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(player.name, player.x, player.y - 50);
+
+                // Dead
+                if (!player.alive) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
+                    ctx.font = 'bold 16px Courier New';
+                    ctx.fillText('X', player.x, player.y + 5);
+                }
+            });
+
+            // Border
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(1, 1, MAP_WIDTH - 2, MAP_HEIGHT - 2);
+
+            ctx.restore();
+        }
+
+        // Game loop
+        function gameLoop() {
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+
+        // Input
+        const keys = {};
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        setInterval(() => {
+            if (isPlayingGame && currentGameId) {
+                if (keys['w']) socket.emit('movePlayer', 'forward', currentGameId);
+                if (keys['s']) socket.emit('movePlayer', 'backward', currentGameId);
+                if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
+                if (keys['d']) socket.emit('movePlayer', 'right', currentGameId);
+            }
+        }, 30);
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isPlayingGame && gameState && currentPlayerId) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const player = gameState.players.find(p => p.id === currentPlayerId);
+                if (player) {
+                    const scaleX = (canvas.width * 0.85) / MAP_WIDTH;
+                    const scaleY = (canvas.height * 0.85) / MAP_HEIGHT;
+                    const scale = Math.min(scaleX, scaleY);
+                    const offsetX = (canvas.width - MAP_WIDTH * scale) / 2;
+                    const offsetY = (canvas.height - MAP_HEIGHT * scale) / 2 + 30;
+
+                    const gameX = (mouseX - offsetX) / scale;
+                    const gameY = (mouseY - offsetY) / scale;
+
+                    const angle = Math.atan2(gameY - player.y, gameX - player.x);
+                    socket.emit('aim', angle, currentGameId);
+                }
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (!isPlayingGame) return;
+            socket.emit('shoot', currentGameId);
+        });
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (!isPlayingGame) return;
+            socket.emit('reload', currentGameId);
+        });
+
+        // Socket
+        socket.on('gameStateUpdate', (state) => {
+            gameState = state;
+            updateUI();
+        });
+
+        socket.on('gameStarted', () => {
+            console.log('Game started!');
+        });
+
+        function updateUI() {
+            if (!gameState) return;
+
+            const player = gameState.players.find(p => p.id === currentPlayerId);
+            if (player) {
+                document.getElementById('playerHealth').textContent = player.hp;
+                document.getElementById('playerAmmo').textContent = player.ammo;
+                document.getElementById('playerLives').textContent = player.lives;
+                document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
+                document.getElementById('ammoBar').style.width = (player.ammo / player.maxAmmo * 100) + '%';
+            }
+
+            document.getElementById('scoreBlue').textContent = gameState.scores[0];
+            document.getElementById('scoreRed').textContent = gameState.scores[1];
+            document.getElementById('scoreYellow').textContent = gameState.scores[2];
+            document.getElementById('scoreGreen').textContent = gameState.scores[3];
+
+            document.getElementById('scoreboard').innerHTML = gameState.players
+                .sort((a, b) => b.kills - a.kills)
+                .map(p => `
+                    <div class="scoreboard-entry">
+                        <div class="name" style="color: ${teamColors[p.teamIndex]}">${p.name}</div>
+                        <div class="stats">K: ${p.kills} | D: ${p.deaths} | HP: ${p.hp}/${p.maxHp}</div>
+                        <div class="team-label">${teamNames[p.teamIndex]}</div>
+                    </div>
+                `)
+                .join('');
+        }
+
+        function getGames() {
+            socket.emit('getGames', (games) => {
+                const gamesList = document.getElementById('gamesList');
+                const gameSelect = document.getElementById('selectedGame');
+                gamesList.innerHTML = '';
+                gameSelect.innerHTML = '';
+
+                if (games.length === 0) {
+                    gamesList.innerHTML = '<p style="color: #888;">Inga spel tillgängliga</p>';
+                } else {
+                    games.forEach(game => {
+                        const div = document.createElement('div');
+                        div.className = 'game-item';
+                        div.innerHTML = `<strong>Spel ${game.id.slice(-6)}</strong> - ${game.playerCount}/8 spelare`;
+                        gamesList.appendChild(div);
+
+                        const option = document.createElement('option');
+                        option.value = game.id;
+                        option.textContent = `Spel ${game.id.slice(-6)} (${game.playerCount}/8)`;
+                        gameSelect.appendChild(option);
+                    });
+                }
+
+                if (gameSelect.innerHTML === '') {
+                    const option = document.createElement('option');
+                    option.disabled = true;
+                    option.selected = true;
+                    option.textContent = 'Skapa ett spel först';
+                    gameSelect.appendChild(option);
+                }
+            });
+        }
+
+        function createGame() {
+            socket.emit('createGame', 0, (gameId) => {
+                currentGameId = gameId;
+                setTimeout(getGames, 100);
+            });
+        }
+
+        function joinGame() {
+            const gameId = document.getElementById('selectedGame').value;
+            if (!gameId) return;
+
+            socket.emit('joinGame', gameId, {
+                name: document.getElementById('playerName').value || 'Player',
+                teamIndex: parseInt(document.getElementById('teamIndex').value),
+                tankType: document.getElementById('tankType').value
+            }, (result) => {
+                if (result.success) {
+                    currentGameId = gameId;
+                    currentPlayerId = result.playerId;
+                    isPlayingGame = true;
+                    document.getElementById('lobbyScreen').style.display = 'none';
+                    document.getElementById('gameContainer').style.display = 'flex';
+                    
+                    setTimeout(() => {
+                        socket.emit('startGame', gameId, () => {});
+                    }, 500);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            });
+        }
+
+        function leaveGame() {
+            isPlayingGame = false;
+            currentGameId = null;
+            currentPlayerId = null;
+            document.getElementById('lobbyScreen').style.display = 'flex';
+            document.getElementById('gameContainer').style.display = 'none';
+            socket.disconnect();
+            setTimeout(() => {
+                socket.connect();
+                getGames();
+            }, 500);
+        }
+
+        getGames();
+        setInterval(getGames, 3000);
+    </script>
+</body>
+</html>
