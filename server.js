@@ -1,540 +1,382 @@
-// server.js
-// Serves /public/* statically AND runs WebSocket on same origin.
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const path = require('path');
 
-import http from "http";
-import { WebSocketServer } from "ws";
-import crypto from "crypto";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: { origin: "*" }
+});
+
+app.use(express.static('public'));
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ---------- Static file serving ----------
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PUBLIC_DIR = path.join(__dirname, "public");
+// Game state
+const games = {};
+const players = {};
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js":   "application/javascript",
-  ".css":  "text/css",
-  ".png":  "image/png",
-  ".jpg":  "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif":  "image/gif",
-  ".svg":  "image/svg+xml",
-  ".ico":  "image/x-icon",
-  ".json": "application/json",
-  ".mp3":  "audio/mpeg",
-};
-
-function serveStatic(req, res) {
-  let urlPath = req.url.split("?")[0];
-  if (urlPath === "/") urlPath = "/index.html";
-
-  const filePath = path.join(PUBLIC_DIR, urlPath);
-
-  if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403); res.end("Forbidden");
-    return;
-  }
-
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = MIME[ext] || "application/octet-stream";
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Not found\n");
-      return;
-    }
-    res.writeHead(200, { "Content-Type": contentType });
-    res.end(data);
-  });
-}
-
-const server = http.createServer((req, res) => {
-  if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    return res.end("ok\n");
-  }
-  serveStatic(req, res);
-});
-
-// ---------- WebSocket game server ----------
-const wss = new WebSocketServer({ server });
-
-// ---- Config ----
-const TICK_HZ = 30;
-const DT = 1 / TICK_HZ;
-
-const MAX_HP = 100;
-const RESPAWN_MS = 1200;
-
-const PLAYER_RADIUS = 0.55;
-
-const SPEED = 9.8;
-const ACCEL = 28.0;
-const FRICTION = 12.0;
-
-// Damage per weapon (server authoritative)
-const DAMAGE_BY_WEAPON = {
-  shotgun: 33,
-  smg: 20,
-};
-
-// Fire rate (server authoritative) — anti-fusk
-// (sekunder mellan skott)
-const FIRE_INTERVAL_BY_WEAPON = {
-  shotgun: 0.70,
-  // SMG: ändra här om du vill (t.ex. 3 skott/sek => 1/3 ≈ 0.333)
-  smg: 0.10, // 10 skott/sek
-};
-
-// Max queued shots per player (för att undvika spam)
-const MAX_PENDING_SHOTS = 6;
-
-// ---- Level ----
-const CELL = 4;
-const MAP = [
-  "####################",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "#..................#",
-  "####################"
-];
-const MAP_H = MAP.length;
-const MAP_W = MAP[0].length;
-
-function isWallCell(cx, cz) {
-  if (cx < 0 || cz < 0 || cx >= MAP_W || cz >= MAP_H) return true;
-  return MAP[cz][cx] === "#";
-}
-
-function circleHitsWall(x, z, r) {
-  const minCX = Math.floor((x - r) / CELL);
-  const maxCX = Math.floor((x + r) / CELL);
-  const minCZ = Math.floor((z - r) / CELL);
-  const maxCZ = Math.floor((z + r) / CELL);
-  for (let cz = minCZ; cz <= maxCZ; cz++) {
-    for (let cx = minCX; cx <= maxCX; cx++) {
-      if (!isWallCell(cx, cz)) continue;
-      const x0 = cx * CELL, x1 = x0 + CELL;
-      const z0 = cz * CELL, z1 = z0 + CELL;
-      const px = Math.max(x0, Math.min(x, x1));
-      const pz = Math.max(z0, Math.min(z, z1));
-      const dx = x - px, dz = z - pz;
-      if (dx * dx + dz * dz < r * r) return true;
-    }
-  }
-  return false;
-}
-
-function collideAndSlide(p, newX, newZ) {
-  const r = PLAYER_RADIUS;
-  if (!circleHitsWall(newX, p.z, r)) p.x = newX;
-  if (!circleHitsWall(p.x, newZ, r)) p.z = newZ;
-}
-
-// ---- Rooms ----
-const rooms = new Map();
-
-function rid() { return crypto.randomBytes(4).toString("hex"); }
-function nowMs() { return Date.now(); }
-function nowSec() { return Date.now() / 1000; }
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function lerp(a, b, t) { return a + (b - a) * t; }
-function expSmoothingFactor(k, dt) { return 1 - Math.exp(-k * dt); }
-
-function getOrCreateRoom(name) {
-  const key = (name || "lobby").toLowerCase();
-  let room = rooms.get(key);
-  if (!room) {
-    room = {
-      name: key,
-      players: new Map(),
-      // pairKills: Map("killerId|victimId" -> count)
-      pairKills: new Map(),
-    };
-    rooms.set(key, room);
-  }
-  return room;
-}
-
-function spawnPoint(room) {
-  const base = [
-    { x: 8,  z: 8  },
-    { x: 68, z: 8  },
-    { x: 8,  z: 52 },
-    { x: 68, z: 52 },
-    { x: 38, z: 28 },
-  ];
-  let sp = base[room.players.size % base.length];
-  const cx = Math.floor(sp.x / CELL), cz = Math.floor(sp.z / CELL);
-  if (isWallCell(cx, cz)) sp = { x: 8, z: 8 };
-  return sp;
-}
-
-function broadcast(room, obj) {
-  const msg = JSON.stringify(obj);
-  for (const p of room.players.values()) {
-    if (p.ws.readyState === 1) p.ws.send(msg);
+class Player {
+  constructor(id, name, teamIndex, tankType) {
+    this.id = id;
+    this.name = name;
+    this.teamIndex = teamIndex;
+    this.tankType = tankType;
+    this.x = 0;
+    this.y = 0;
+    this.angle = 0;
+    this.hp = 100;
+    this.maxHp = 100;
+    this.lives = 3;
+    this.kills = 0;
+    this.deaths = 0;
+    this.ammo = 10;
+    this.maxAmmo = 10;
+    this.isReloading = false;
+    this.reloadStartTime = 0;
+    this.alive = true;
   }
 }
 
-function buildScoreboard(room) {
-  return [...room.players.values()].map(p => ({
-    id: p.id,
-    name: p.name,
-    kills: p.kills || 0,
-    deaths: p.deaths || 0,
-  }));
-}
-
-function buildPairKills(room) {
-  const out = [];
-  for (const [key, count] of room.pairKills.entries()) {
-    const [killerId, victimId] = key.split("|");
-    const killer = room.players.get(killerId);
-    const victim = room.players.get(victimId);
-    out.push({
-      killerId,
-      victimId,
-      killerName: killer?.name || "player",
-      victimName: victim?.name || "player",
-      count,
-    });
+class Projectile {
+  constructor(x, y, angle, playerId, playerName, teamIndex) {
+    this.x = x;
+    this.y = y;
+    this.vx = Math.cos(angle) * 8;
+    this.vy = Math.sin(angle) * 8;
+    this.playerId = playerId;
+    this.playerName = playerName;
+    this.teamIndex = teamIndex;
+    this.damage = 20;
+    this.lifetime = 500; // frames
+    this.age = 0;
   }
-  out.sort((a,b)=> b.count - a.count);
-  return out.slice(0, 12);
 }
 
-// ---- Hitscan ----
-function yawPitchToDir(yaw, pitch) {
-  // Same convention as client: forward = -Z
-  const cy = Math.cos(yaw), sy = Math.sin(yaw);
-  const cp = Math.cos(pitch), sp = Math.sin(pitch);
-
-  const x = -sy * cp;
-  const y = sp;
-  const z = -cy * cp;
-
-  const l = Math.hypot(x, y, z) || 1;
-  return { x: x / l, y: y / l, z: z / l };
-}
-
-function rayBlockedByWall(ox, oz, dx, dz, maxDist) {
-  const step = 0.35;
-  let t = 0;
-  while (t <= maxDist) {
-    const cx = Math.floor((ox + dx * t) / CELL);
-    const cz = Math.floor((oz + dz * t) / CELL);
-    if (isWallCell(cx, cz)) return true;
-    t += step;
-  }
-  return false;
-}
-
-function rayHitsPlayer(shooter, target, dirX, dirZ, maxDist = 60) {
-  const ox = shooter.x, oz = shooter.z;
-  const cx = target.x, cz = target.z;
-  const r = PLAYER_RADIUS;
-  const mx = cx - ox, mz = cz - oz;
-  const t = mx * dirX + mz * dirZ;
-  if (t < 0 || t > maxDist) return null;
-  const px = ox + dirX * t;
-  const pz = oz + dirZ * t;
-  if ((cx - px) ** 2 + (cz - pz) ** 2 > r * r) return null;
-  if (rayBlockedByWall(ox, oz, dirX, dirZ, t)) return null;
-  return t;
-}
-
-function normalizeWeapon(w) {
-  const s = String(w || "");
-  return (s === "smg" || s === "shotgun") ? s : "shotgun";
-}
-
-// ---- WebSocket ----
-wss.on("connection", (ws) => {
-  let player = null;
-
-  ws.on("message", (data) => {
-    let msg;
-    try { msg = JSON.parse(String(data)); } catch { return; }
-
-    if (msg.t === "join") {
-      const room = getOrCreateRoom(msg.room || "lobby");
-      const id = rid();
-      const sp = spawnPoint(room);
-
-      player = {
-        id, ws,
-        room: room.name,
-        name: String(msg.name || "player").slice(0, 16),
-        x: sp.x, z: sp.z,
-        yaw: 0, pitch: 0,
-        hp: MAX_HP,
-        lastHeardMs: nowMs(),
-        vx: 0, vz: 0,
-        inX: 0, inZ: 0,
-
-        // NEW: shot queue + rate limit
-        pendingShots: 0,
-        nextShotAt: 0,        // seconds (server time)
-        shootYaw: 0,
-        shootPitch: 0,
-        shootWeapon: "shotgun",
-
-        weapon: "shotgun",
-        kills: 0,
-        deaths: 0,
-      };
-
-      room.players.set(id, player);
-
-      ws.send(JSON.stringify({
-        t: "welcome",
-        id,
-        room: room.name,
-        you: { x: player.x, z: player.z, hp: player.hp },
-        players: [...room.players.values()].map(p => ({
-          id: p.id, name: p.name, x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp, weapon: p.weapon
-        })),
-        scoreboard: buildScoreboard(room),
-        pairKills: buildPairKills(room),
-        ts: nowMs()
-      }));
-
-      broadcast(room, {
-        t: "player_join",
-        p: { id, name: player.name, x: player.x, z: player.z, yaw: 0, pitch: 0, hp: player.hp, weapon: player.weapon },
-        scoreboard: buildScoreboard(room),
-        pairKills: buildPairKills(room),
-        ts: nowMs()
-      });
-      return;
-    }
-
-    if (!player) return;
-    player.lastHeardMs = nowMs();
-
-    if (msg.t === "input") {
-      player.inX   = clamp(Number(msg.ix) || 0, -1, 1);
-      player.inZ   = clamp(Number(msg.iz) || 0, -1, 1);
-      player.yaw   = Number(msg.yaw) || 0;
-      player.pitch = clamp(Number(msg.pitch) || 0, -1.4, 1.4);
-      return;
-    }
-
-    if (msg.t === "weapon") {
-      const w = normalizeWeapon(msg.weapon || "shotgun");
-      player.weapon = w;
-
-      const room = getOrCreateRoom(player.room);
-      broadcast(room, { t:"weapon", id: player.id, weapon: player.weapon, ts: nowMs() });
-      return;
-    }
-
-    if (msg.t === "shoot") {
-      // Enqueue shot (droppa inte skott mellan ticks)
-      if (player.hp <= 0) return;
-
-      player.shootYaw   = Number(msg.yaw)   || player.yaw;
-      player.shootPitch = clamp(Number(msg.pitch) || player.pitch, -1.4, 1.4);
-
-      // Ta weapon från msg om den finns, annars spelarens val
-      player.shootWeapon = normalizeWeapon(msg.weapon || player.weapon || "shotgun");
-
-      // Anti-spam: cap queue
-      player.pendingShots = Math.min(MAX_PENDING_SHOTS, player.pendingShots + 1);
-      return;
-    }
-
-    if (msg.t === "name") {
-      player.name = String(msg.name || player.name).slice(0, 16);
-      const room = getOrCreateRoom(player.room);
-      broadcast(room, {
-        t: "player_name",
-        id: player.id,
-        name: player.name,
-        scoreboard: buildScoreboard(room),
-        pairKills: buildPairKills(room),
-        ts: nowMs()
-      });
-      return;
-    }
-  });
-
-  ws.on("close", () => {
-    if (!player) return;
-    const room = rooms.get(player.room);
-    if (!room) return;
-    room.players.delete(player.id);
-    broadcast(room, { t: "player_leave", id: player.id, scoreboard: buildScoreboard(room), pairKills: buildPairKills(room), ts: nowMs() });
-    if (room.players.size === 0) rooms.delete(room.name);
-  });
-});
-
-// ---- One authoritative shot resolve ----
-function resolveOneShot(room, shooter) {
-  const weapon = normalizeWeapon(shooter.shootWeapon || shooter.weapon || "shotgun");
-  const dmg = DAMAGE_BY_WEAPON[weapon] ?? DAMAGE_BY_WEAPON.shotgun;
-
-  const dir = yawPitchToDir(shooter.shootYaw, shooter.shootPitch);
-  let bestId = null, bestT = Infinity;
-
-  // hitscan uses XZ for collision; pitch is mostly visual
-  for (const target of room.players.values()) {
-    if (target.id === shooter.id || target.hp <= 0) continue;
-    const t = rayHitsPlayer(shooter, target, dir.x, dir.z, 60);
-    if (t !== null && t < bestT) { bestT = t; bestId = target.id; }
+class Game {
+  constructor(gameId, mapId) {
+    this.gameId = gameId;
+    this.mapId = mapId || 0;
+    this.players = {};
+    this.projectiles = [];
+    this.state = 'lobby'; // 'lobby', 'playing'
+    this.teamCounts = [0, 0, 0, 0];
+    this.scores = [0, 0, 0, 0];
+    this.gameStartTime = null;
+    this.mapIndex = mapId || 0;
   }
 
-  if (bestId) {
-    const victim = room.players.get(bestId);
-    if (victim) {
-      victim.hp -= dmg;
+  addPlayer(player) {
+    this.players[player.id] = player;
+    this.teamCounts[player.teamIndex]++;
+  }
 
-      if (victim.hp <= 0) {
-        victim.hp = 0;
-
-        shooter.kills = (shooter.kills || 0) + 1;
-        victim.deaths = (victim.deaths || 0) + 1;
-
-        const key = `${shooter.id}|${victim.id}`;
-        room.pairKills.set(key, (room.pairKills.get(key) || 0) + 1);
-        const pairCount = room.pairKills.get(key);
-
-        broadcast(room, {
-          t: "kill",
-          killer: shooter.id,
-          victim: victim.id,
-          killerName: shooter.name,
-          victimName: victim.name,
-          pairCount,
-          scoreboard: buildScoreboard(room),
-          pairKills: buildPairKills(room),
-          ts: nowMs()
-        });
-
-        setTimeout(() => {
-          if (!room.players.has(victim.id)) return;
-          const sp = spawnPoint(room);
-          victim.x = sp.x; victim.z = sp.z;
-          victim.vx = 0; victim.vz = 0;
-          victim.hp = MAX_HP;
-
-          broadcast(room, {
-            t: "respawn",
-            id: victim.id,
-            x: victim.x,
-            z: victim.z,
-            hp: victim.hp,
-            scoreboard: buildScoreboard(room),
-            pairKills: buildPairKills(room),
-            ts: nowMs()
-          });
-        }, RESPAWN_MS);
-      }
-
-      broadcast(room, {
-        t: "hit",
-        from: shooter.id,
-        to: victim.id,
-        hp: victim.hp,
-        weapon,
-        dmg,
-        scoreboard: buildScoreboard(room),
-        pairKills: buildPairKills(room),
-        ts: nowMs()
-      });
+  removePlayer(playerId) {
+    const player = this.players[playerId];
+    if (player) {
+      this.teamCounts[player.teamIndex]--;
+      delete this.players[playerId];
     }
   }
 
-  // Broadcast visual shot for tracers (yaw + pitch!)
-  broadcast(room, {
-    t: "shot",
-    id: shooter.id,
-    yaw: shooter.shootYaw,
-    pitch: shooter.shootPitch,
-    weapon,
-    scoreboard: buildScoreboard(room),
-    pairKills: buildPairKills(room),
-    ts: nowMs()
-  });
-}
+  canStartGame() {
+    return Object.keys(this.players).length >= 2;
+  }
 
-// ---- Game tick ----
-setInterval(() => {
-  for (const room of rooms.values()) {
-    // Movement
-    for (const p of room.players.values()) {
-      if (nowMs() - p.lastHeardMs > 30000) {
-        try { p.ws.close(); } catch {}
-        room.players.delete(p.id);
-        broadcast(room, { t: "player_leave", id: p.id, scoreboard: buildScoreboard(room), pairKills: buildPairKills(room), ts: nowMs() });
+  startGame() {
+    this.state = 'playing';
+    this.gameStartTime = Date.now();
+    this.spawnAllPlayers();
+  }
+
+  spawnAllPlayers() {
+    const spawnPoints = this.getSpawnPoints();
+    let spawnIndex = 0;
+    
+    for (let playerId in this.players) {
+      const player = this.players[playerId];
+      const spawn = spawnPoints[spawnIndex % spawnPoints.length];
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.angle = spawn.angle || 0;
+      player.hp = player.maxHp;
+      player.alive = true;
+      spawnIndex++;
+    }
+  }
+
+  getSpawnPoints() {
+    const points = [
+      { x: 100, y: 100, angle: 0 },
+      { x: 700, y: 100, angle: Math.PI },
+      { x: 100, y: 500, angle: Math.PI / 2 },
+      { x: 700, y: 500, angle: -Math.PI / 2 },
+      { x: 400, y: 100, angle: 0 },
+      { x: 400, y: 500, angle: Math.PI },
+      { x: 100, y: 300, angle: Math.PI / 2 },
+      { x: 700, y: 300, angle: -Math.PI / 2 }
+    ];
+    return points;
+  }
+
+  update() {
+    if (this.state !== 'playing') return;
+
+    // Update projectiles
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const proj = this.projectiles[i];
+      proj.x += proj.vx;
+      proj.y += proj.vy;
+      proj.age++;
+
+      // Check if projectile is out of bounds or expired
+      if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
+        this.projectiles.splice(i, 1);
         continue;
       }
 
-      let ix = p.inX, iz = p.inZ;
-      const il = Math.hypot(ix, iz);
-      if (il > 1e-6) { ix /= il; iz /= il; } else { ix = 0; iz = 0; }
+      // Check collision with players
+      for (let playerId in this.players) {
+        const target = this.players[playerId];
+        if (target.id === proj.playerId || !target.alive) continue;
 
-      if (ix !== 0 || iz !== 0) {
-        const t = expSmoothingFactor(ACCEL, DT);
-        p.vx = lerp(p.vx, ix * SPEED, t);
-        p.vz = lerp(p.vz, iz * SPEED, t);
-      } else {
-        const t = expSmoothingFactor(FRICTION, DT);
-        p.vx = lerp(p.vx, 0, t);
-        p.vz = lerp(p.vz, 0, t);
-      }
+        const dx = target.x - proj.x;
+        const dy = target.y - proj.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-      const minX = 0.5, maxX = MAP_W * CELL - 0.5;
-      const minZ = 0.5, maxZ = MAP_H * CELL - 0.5;
-      collideAndSlide(p, clamp(p.x + p.vx * DT, minX, maxX), clamp(p.z + p.vz * DT, minZ, maxZ));
-    }
+        if (dist < 30) {
+          // Hit!
+          target.hp -= proj.damage;
 
-    // Shooting (queue + rate limit)
-    const tNow = nowSec();
-    for (const shooter of room.players.values()) {
-      if (shooter.hp <= 0) { shooter.pendingShots = 0; continue; }
-      if (shooter.pendingShots <= 0) continue;
+          if (target.hp <= 0) {
+            target.hp = 0;
+            target.alive = false;
+            target.deaths++;
 
-      const w = normalizeWeapon(shooter.shootWeapon || shooter.weapon || "shotgun");
-      const interval = FIRE_INTERVAL_BY_WEAPON[w] ?? FIRE_INTERVAL_BY_WEAPON.shotgun;
+            const shooter = this.players[proj.playerId];
+            if (shooter) {
+              shooter.kills++;
+              this.scores[proj.teamIndex] += 20;
+            }
+          } else {
+            this.scores[proj.teamIndex] += 1;
+          }
 
-      // Process as many as allowed this tick, but only if interval permits
-      let safety = 6; // extra guard
-      while (shooter.pendingShots > 0 && tNow >= shooter.nextShotAt && safety-- > 0) {
-        shooter.pendingShots--;
-        shooter.nextShotAt = tNow + interval;
-        resolveOneShot(room, shooter);
+          this.projectiles.splice(i, 1);
+          break;
+        }
       }
     }
 
-    // State snapshot
-    broadcast(room, {
-      t: "state",
-      ts: nowMs(),
-      scoreboard: buildScoreboard(room),
-      pairKills: buildPairKills(room),
-      players: [...room.players.values()].map(p => ({
-        id: p.id, name: p.name, x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, hp: p.hp, weapon: p.weapon
-      }))
-    });
+    // Respawn dead players
+    for (let playerId in this.players) {
+      const player = this.players[playerId];
+      if (!player.alive && player.lives > 0) {
+        player.lives--;
+        if (player.lives >= 0) {
+          const spawnPoints = this.getSpawnPoints();
+          const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+          player.x = spawn.x;
+          player.y = spawn.y;
+          player.hp = player.maxHp;
+          player.alive = true;
+        }
+      }
+    }
   }
-}, 1000 / TICK_HZ);
 
-server.listen(PORT, () => console.log("Listening on", PORT));
+  getGameState() {
+    return {
+      state: this.state,
+      players: Object.values(this.players).map(p => ({
+        id: p.id,
+        name: p.name,
+        x: p.x,
+        y: p.y,
+        angle: p.angle,
+        hp: p.hp,
+        maxHp: p.maxHp,
+        lives: p.lives,
+        kills: p.kills,
+        deaths: p.deaths,
+        ammo: p.ammo,
+        maxAmmo: p.maxAmmo,
+        alive: p.alive,
+        teamIndex: p.teamIndex,
+        tankType: p.tankType
+      })),
+      projectiles: this.projectiles.map(p => ({
+        x: p.x,
+        y: p.y,
+        vx: p.vx,
+        vy: p.vy
+      })),
+      scores: this.scores,
+      mapIndex: this.mapIndex
+    };
+  }
+}
+
+// Socket connections
+io.on('connection', (socket) => {
+  console.log('Player connected:', socket.id);
+
+  socket.on('getGames', (callback) => {
+    const gameList = Object.keys(games).map(id => ({
+      id,
+      playerCount: Object.keys(games[id].players).length,
+      state: games[id].state
+    }));
+    callback(gameList);
+  });
+
+  socket.on('createGame', (mapId, callback) => {
+    const gameId = 'game_' + Date.now();
+    const game = new Game(gameId, mapId || 0);
+    games[gameId] = game;
+    callback(gameId);
+  });
+
+  socket.on('joinGame', (gameId, playerData, callback) => {
+    if (!games[gameId]) {
+      callback({ success: false, error: 'Game not found' });
+      return;
+    }
+
+    const game = games[gameId];
+    if (game.state !== 'lobby') {
+      callback({ success: false, error: 'Game already started' });
+      return;
+    }
+
+    if (game.teamCounts[playerData.teamIndex] >= 2) {
+      callback({ success: false, error: 'Team is full' });
+      return;
+    }
+
+    const player = new Player(socket.id, playerData.name, playerData.teamIndex, playerData.tankType);
+    game.addPlayer(player);
+    players[socket.id] = { gameId, player };
+
+    socket.join(gameId);
+    io.to(gameId).emit('gameStateUpdate', game.getGameState());
+    io.to(gameId).emit('playerJoined', { name: playerData.name, teamIndex: playerData.teamIndex });
+
+    callback({ success: true, playerId: socket.id });
+  });
+
+  socket.on('movePlayer', (direction, gameId) => {
+    if (!players[socket.id]) return;
+    const { gameId: pGameId, player } = players[socket.id];
+    if (pGameId !== gameId) return;
+
+    const speed = 3;
+    const cos = Math.cos(player.angle);
+    const sin = Math.sin(player.angle);
+
+    if (direction === 'forward') {
+      player.x += cos * speed;
+      player.y += sin * speed;
+    } else if (direction === 'backward') {
+      player.x -= cos * speed;
+      player.y -= sin * speed;
+    } else if (direction === 'left') {
+      player.angle -= 0.05;
+    } else if (direction === 'right') {
+      player.angle += 0.05;
+    }
+
+    // Keep player in bounds
+    player.x = Math.max(20, Math.min(780, player.x));
+    player.y = Math.max(20, Math.min(580, player.y));
+  });
+
+  socket.on('aim', (angle, gameId) => {
+    if (!players[socket.id]) return;
+    const { gameId: pGameId, player } = players[socket.id];
+    if (pGameId !== gameId) return;
+    player.angle = angle;
+  });
+
+  socket.on('shoot', (gameId) => {
+    if (!players[socket.id]) return;
+    const { gameId: pGameId, player } = players[socket.id];
+    if (pGameId !== gameId) return;
+    if (!player.alive || player.isReloading || player.ammo <= 0) return;
+
+    const game = games[gameId];
+    const projectile = new Projectile(
+      player.x,
+      player.y,
+      player.angle,
+      player.id,
+      player.name,
+      player.teamIndex
+    );
+    game.projectiles.push(projectile);
+    player.ammo--;
+
+    if (player.ammo === 0) {
+      player.isReloading = true;
+      player.reloadStartTime = Date.now();
+    }
+
+    io.to(gameId).emit('gameStateUpdate', game.getGameState());
+  });
+
+  socket.on('reload', (gameId) => {
+    if (!players[socket.id]) return;
+    const { gameId: pGameId, player } = players[socket.id];
+    if (pGameId !== gameId) return;
+
+    if (player.ammo < player.maxAmmo) {
+      player.isReloading = true;
+      player.reloadStartTime = Date.now();
+      setTimeout(() => {
+        player.ammo = player.maxAmmo;
+        player.isReloading = false;
+        io.to(gameId).emit('gameStateUpdate', games[gameId].getGameState());
+      }, 2000);
+    }
+  });
+
+  socket.on('startGame', (gameId, callback) => {
+    const game = games[gameId];
+    if (game && game.canStartGame()) {
+      game.startGame();
+      io.to(gameId).emit('gameStateUpdate', game.getGameState());
+      io.to(gameId).emit('gameStarted');
+      callback({ success: true });
+    } else {
+      callback({ success: false });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (players[socket.id]) {
+      const { gameId, player } = players[socket.id];
+      const game = games[gameId];
+      if (game) {
+        game.removePlayer(socket.id);
+        io.to(gameId).emit('gameStateUpdate', game.getGameState());
+      }
+      delete players[socket.id];
+    }
+    console.log('Player disconnected:', socket.id);
+  });
+});
+
+// Game loop
+setInterval(() => {
+  for (let gameId in games) {
+    const game = games[gameId];
+    game.update();
+    io.to(gameId).emit('gameStateUpdate', game.getGameState());
+  }
+}, 1000 / 60); // 60 FPS
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
