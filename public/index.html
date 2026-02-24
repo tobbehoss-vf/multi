@@ -371,11 +371,24 @@
 
         // Rendering
         function render() {
-            if (!gameState) return;
-
             // Clear
             ctx.fillStyle = '#0a0a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Visa debug text om inget spel är startad
+            if (!gameState) {
+                ctx.fillStyle = '#00ff88';
+                ctx.font = '14px Courier New';
+                ctx.fillText('Väntar på spel...', 20, 40);
+                return;
+            }
+
+            if (gameState.players.length === 0) {
+                ctx.fillStyle = '#00ff88';
+                ctx.font = '14px Courier New';
+                ctx.fillText('Inga spelare i spelet', 20, 40);
+                return;
+            }
 
             // Calculate scale to fit 800x600 map
             const scale = Math.min(
@@ -407,17 +420,30 @@
             }
 
             // Draw projectiles
-            gameState.projectiles.forEach(p => {
-                ctx.fillStyle = '#ffff00';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-                ctx.fill();
+            if (gameState.projectiles && gameState.projectiles.length > 0) {
+                gameState.projectiles.forEach(p => {
+                    // Glow
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 12);
+                    grad.addColorStop(0, 'rgba(255, 200, 0, 0.8)');
+                    grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+                    ctx.fill();
 
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-                ctx.fill();
-            });
+                    // Core
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Center
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
 
             // Draw players - TANKS
             gameState.players.forEach(player => {
@@ -432,6 +458,7 @@
                 ctx.fillRect(-20, -12, 40, 24);
 
                 // Turret
+                ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.arc(0, 0, 10, 0, Math.PI * 2);
                 ctx.fill();
@@ -466,6 +493,13 @@
             ctx.strokeRect(0, 0, 800, 600);
 
             ctx.restore();
+
+            // Debug - visa antal spelare
+            ctx.fillStyle = '#00ff88';
+            ctx.font = '12px Courier New';
+            ctx.textAlign = 'left';
+            ctx.fillText('Spelare: ' + gameState.players.length, 10, 20);
+            ctx.fillText('Projektiler: ' + (gameState.projectiles ? gameState.projectiles.length : 0), 10, 35);
         }
 
         function gameLoop() {
