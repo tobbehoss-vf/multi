@@ -123,18 +123,28 @@ class Game {
   }
 
   update() {
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing') {
+      // console.log(`Game ${this.gameId} is not playing, state=${this.state}`);
+      return;
+    }
 
     // Update projectiles
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const proj = this.projectiles[i];
+      const oldX = proj.x;
+      const oldY = proj.y;
       proj.x += proj.vx;
       proj.y += proj.vy;
       proj.age++;
 
+      // Debug: log movement
+      if (i === 0 && this.projectiles.length > 0) {
+        console.log(`Proj moved from (${oldX.toFixed(0)}, ${oldY.toFixed(0)}) to (${proj.x.toFixed(0)}, ${proj.y.toFixed(0)}), age=${proj.age}`);
+      }
+
       // Check if projectile is out of bounds or expired
       if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
-        console.log(`Projectile expired at age ${proj.age}`);
+        console.log(`Projectile expired at age ${proj.age}, final pos=(${proj.x.toFixed(0)}, ${proj.y.toFixed(0)})`);
         this.projectiles.splice(i, 1);
         continue;
       }
