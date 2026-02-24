@@ -170,7 +170,10 @@
             });
 
             socket.on('gameStateUpdate', (state) => {
-                console.log('Received gameStateUpdate:', state.players.length, 'players');
+                console.log('Received gameStateUpdate:', state.players.length, 'players,', state.projectiles.length, 'projectiles');
+                if (state.projectiles.length > 0) {
+                    console.log('Projectile positions:', state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
+                }
                 gameState = state;
                 updateUI();
             });
@@ -428,40 +431,4 @@
 
         function joinGame() {
             if (!socket) return;
-            const gid = document.getElementById('selectedGame').value;
-            if (!gid) return;
-
-            socket.emit('joinGame', gid, {
-                name: document.getElementById('playerName').value || 'Player',
-                teamIndex: parseInt(document.getElementById('teamIndex').value),
-                tankType: document.getElementById('tankType').value
-            }, result => {
-                console.log('Join result:', result);
-                if (result.success) {
-                    currentGameId = gid;
-                    currentPlayerId = result.playerId;
-                    isPlaying = true;
-                    document.getElementById('lobbyScreen').style.display = 'none';
-                    document.getElementById('gameContainer').style.display = 'flex';
-                    console.log('Game started with player ID:', result.playerId);
-                }
-            });
-        }
-
-        function leaveGame() {
-            isPlaying = false;
-            currentGameId = null;
-            currentPlayerId = null;
-            document.getElementById('lobbyScreen').style.display = 'flex';
-            document.getElementById('gameContainer').style.display = 'none';
-            if (socket) {
-                socket.disconnect();
-                setTimeout(() => {
-                    socket.connect();
-                    getGames();
-                }, 500);
-            }
-        }
-    </script>
-</body>
-</html>
+            const gid = document
