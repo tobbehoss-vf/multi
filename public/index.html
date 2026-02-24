@@ -215,12 +215,13 @@
             padding: 20px;
         }
 
-        canvas {
+        #gameCanvas {
             flex: 1;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             border: 2px solid #00ff88;
             border-radius: 4px;
             cursor: crosshair;
+            image-rendering: pixelated;
         }
 
         .game-sidebar {
@@ -328,38 +329,6 @@
         #lobbyScreen {
             display: flex;
         }
-
-        #loadingScreen {
-            display: none;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            height: 100vh;
-            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a3e 100%);
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .spinner {
-            border: 4px solid rgba(0, 255, 136, 0.3);
-            border-top: 4px solid #00ff88;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .lobby-section h2 {
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 15px;
-            font-size: 0.95em;
-        }
     </style>
 </head>
 <body>
@@ -426,7 +395,7 @@
             </div>
 
             <div class="game-content">
-                <canvas id="gameCanvas" width="800" height="600"></canvas>
+                <canvas id="gameCanvas"></canvas>
 
                 <div class="game-sidebar">
                     <div class="sidebar-section">
@@ -493,8 +462,303 @@
         // Canvas setup
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
 
-        // Get available games
+        // Game map dimensions
+        const MAP_WIDTH = 800;
+        const MAP_HEIGHT = 600;
+
+        function drawIsometricTank(player, color) {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle);
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-22, -17, 44, 34);
+
+            // Tank hull
+            ctx.fillStyle = color;
+            ctx.fillRect(-20, -12, 40, 24);
+
+            // Hull details
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-18, -9);
+            ctx.lineTo(-18, 9);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(18, -9);
+            ctx.lineTo(18, 9);
+            ctx.stroke();
+
+            // Tracks
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.lineWidth = 2;
+            for (let i = -10; i <= 10; i += 4) {
+                ctx.beginPath();
+                ctx.moveTo(-20, i);
+                ctx.lineTo(-22, i);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(20, i);
+                ctx.lineTo(22, i);
+                ctx.stroke();
+            }
+
+            // Turret
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, 0, 11, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Turret shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(-3, -3, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Gun barrel
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(28, 0);
+            ctx.stroke();
+
+            // Gun shine
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(5, -2);
+            ctx.lineTo(25, -2);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function render() {
+            // Clear
+            ctx.fillStyle = 'rgba(26, 26, 46, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Perspective background
+            ctx.fillStyle = 'rgba(20, 20, 40, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+
+            if (!gameState) return;
+
+            // Calculate scale
+            const scaleX = (canvas.width * 0.85) / MAP_WIDTH;
+            const scaleY = (canvas.height * 0.85) / MAP_HEIGHT;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const offsetX = (canvas.width - MAP_WIDTH * scale) / 2;
+            const offsetY = (canvas.height - MAP_HEIGHT * scale) / 2 + 30;
+
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
+
+            // Draw grid
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.08)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= MAP_WIDTH; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, MAP_HEIGHT);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= MAP_HEIGHT; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(MAP_WIDTH, i);
+                ctx.stroke();
+            }
+
+            // Draw projectiles
+            gameState.projectiles.forEach(proj => {
+                // Glow
+                const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, 15);
+                gradient.addColorStop(0, 'rgba(255, 200, 0, 0.9)');
+                gradient.addColorStop(0.5, 'rgba(255, 150, 0, 0.4)');
+                gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Core
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Center
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Trail
+                ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(proj.x - proj.vx * 5, proj.y - proj.vy * 5);
+                ctx.lineTo(proj.x, proj.y);
+                ctx.stroke();
+            });
+
+            // Draw players
+            gameState.players.forEach(player => {
+                const color = teamColors[player.teamIndex];
+                drawIsometricTank(player, color);
+
+                // HP bar
+                const barWidth = 50;
+                const barHeight = 5;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
+
+                ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth * (player.hp / 100), barHeight);
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
+
+                // Name
+                ctx.fillStyle = color;
+                ctx.font = 'bold 11px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(player.name, player.x, player.y - 50);
+
+                // Dead
+                if (!player.alive) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
+                    ctx.font = 'bold 16px Courier New';
+                    ctx.fillText('X', player.x, player.y + 5);
+                }
+            });
+
+            // Border
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(1, 1, MAP_WIDTH - 2, MAP_HEIGHT - 2);
+
+            ctx.restore();
+        }
+
+        // Game loop
+        function gameLoop() {
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+
+        // Input
+        const keys = {};
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        setInterval(() => {
+            if (isPlayingGame && currentGameId) {
+                if (keys['w']) socket.emit('movePlayer', 'forward', currentGameId);
+                if (keys['s']) socket.emit('movePlayer', 'backward', currentGameId);
+                if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
+                if (keys['d']) socket.emit('movePlayer', 'right', currentGameId);
+            }
+        }, 30);
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isPlayingGame && gameState && currentPlayerId) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const player = gameState.players.find(p => p.id === currentPlayerId);
+                if (player) {
+                    const scaleX = (canvas.width * 0.85) / MAP_WIDTH;
+                    const scaleY = (canvas.height * 0.85) / MAP_HEIGHT;
+                    const scale = Math.min(scaleX, scaleY);
+                    const offsetX = (canvas.width - MAP_WIDTH * scale) / 2;
+                    const offsetY = (canvas.height - MAP_HEIGHT * scale) / 2 + 30;
+
+                    const gameX = (mouseX - offsetX) / scale;
+                    const gameY = (mouseY - offsetY) / scale;
+
+                    const angle = Math.atan2(gameY - player.y, gameX - player.x);
+                    socket.emit('aim', angle, currentGameId);
+                }
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (!isPlayingGame) return;
+            socket.emit('shoot', currentGameId);
+        });
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (!isPlayingGame) return;
+            socket.emit('reload', currentGameId);
+        });
+
+        // Socket
+        socket.on('gameStateUpdate', (state) => {
+            gameState = state;
+            updateUI();
+        });
+
+        socket.on('gameStarted', () => {
+            console.log('Game started!');
+        });
+
+        function updateUI() {
+            if (!gameState) return;
+
+            const player = gameState.players.find(p => p.id === currentPlayerId);
+            if (player) {
+                document.getElementById('playerHealth').textContent = player.hp;
+                document.getElementById('playerAmmo').textContent = player.ammo;
+                document.getElementById('playerLives').textContent = player.lives;
+                document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
+                document.getElementById('ammoBar').style.width = (player.ammo / player.maxAmmo * 100) + '%';
+            }
+
+            document.getElementById('scoreBlue').textContent = gameState.scores[0];
+            document.getElementById('scoreRed').textContent = gameState.scores[1];
+            document.getElementById('scoreYellow').textContent = gameState.scores[2];
+            document.getElementById('scoreGreen').textContent = gameState.scores[3];
+
+            document.getElementById('scoreboard').innerHTML = gameState.players
+                .sort((a, b) => b.kills - a.kills)
+                .map(p => `
+                    <div class="scoreboard-entry">
+                        <div class="name" style="color: ${teamColors[p.teamIndex]}">${p.name}</div>
+                        <div class="stats">K: ${p.kills} | D: ${p.deaths} | HP: ${p.hp}/${p.maxHp}</div>
+                        <div class="team-label">${teamNames[p.teamIndex]}</div>
+                    </div>
+                `)
+                .join('');
+        }
+
         function getGames() {
             socket.emit('getGames', (games) => {
                 const gamesList = document.getElementById('gamesList');
@@ -529,8 +793,7 @@
         }
 
         function createGame() {
-            const mapId = Math.floor(Math.random() * 3);
-            socket.emit('createGame', mapId, (gameId) => {
+            socket.emit('createGame', 0, (gameId) => {
                 currentGameId = gameId;
                 setTimeout(getGames, 100);
             });
@@ -540,31 +803,23 @@
             const gameId = document.getElementById('selectedGame').value;
             if (!gameId) return;
 
-            const playerData = {
+            socket.emit('joinGame', gameId, {
                 name: document.getElementById('playerName').value || 'Player',
                 teamIndex: parseInt(document.getElementById('teamIndex').value),
                 tankType: document.getElementById('tankType').value
-            };
-
-            socket.emit('joinGame', gameId, playerData, (result) => {
+            }, (result) => {
                 if (result.success) {
                     currentGameId = gameId;
                     currentPlayerId = result.playerId;
                     isPlayingGame = true;
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
-                    document.getElementById('currentPlayerName').textContent = playerData.name;
                     
-                    // Start game automatically if enough players
                     setTimeout(() => {
-                        socket.emit('startGame', gameId, (result) => {
-                            if (!result.success) {
-                                console.log('Väntar på fler spelare...');
-                            }
-                        });
+                        socket.emit('startGame', gameId, () => {});
                     }, 500);
                 } else {
-                    alert('Kunde inte gå med: ' + result.error);
+                    alert('Error: ' + result.error);
                 }
             });
         }
@@ -582,291 +837,6 @@
             }, 500);
         }
 
-        // Game input handling - smooth continuous movement
-        const keys = {};
-        let mouseX = canvas.width / 2;
-        let mouseY = canvas.height / 2;
-
-        window.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            keys[key] = true;
-        });
-
-        window.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            keys[key] = false;
-        });
-
-        // Continuous movement input
-        setInterval(() => {
-            if (isPlayingGame && currentGameId) {
-                if (keys['w']) socket.emit('movePlayer', 'forward', currentGameId);
-                if (keys['s']) socket.emit('movePlayer', 'backward', currentGameId);
-                if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
-                if (keys['d']) socket.emit('movePlayer', 'right', currentGameId);
-            }
-        }, 20);
-
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
-
-            if (isPlayingGame && gameState && currentPlayerId) {
-                const player = gameState.players.find(p => p.id === currentPlayerId);
-                if (player) {
-                    const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
-                    socket.emit('aim', angle, currentGameId);
-                }
-            }
-        });
-
-        canvas.addEventListener('click', (e) => {
-            if (!isPlayingGame) return;
-            socket.emit('shoot', currentGameId);
-        });
-
-        canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            if (!isPlayingGame) return;
-            socket.emit('reload', currentGameId);
-        });
-
-        // Game state updates
-        socket.on('gameStateUpdate', (state) => {
-            gameState = state;
-            updateUI();
-            render();
-        });
-
-        socket.on('gameStarted', () => {
-            console.log('Spelet har startat!');
-        });
-
-        function updateUI() {
-            if (!gameState) return;
-
-            const player = gameState.players.find(p => p.id === currentPlayerId);
-            if (player) {
-                document.getElementById('playerHealth').textContent = player.hp;
-                document.getElementById('playerAmmo').textContent = player.ammo;
-                document.getElementById('playerLives').textContent = player.lives;
-                document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
-                document.getElementById('ammoBar').style.width = (player.ammo / player.maxAmmo * 100) + '%';
-            }
-
-            document.getElementById('scoreBlue').textContent = gameState.scores[0];
-            document.getElementById('scoreRed').textContent = gameState.scores[1];
-            document.getElementById('scoreYellow').textContent = gameState.scores[2];
-            document.getElementById('scoreGreen').textContent = gameState.scores[3];
-
-            const scoreboardDiv = document.getElementById('scoreboard');
-            scoreboardDiv.innerHTML = gameState.players
-                .sort((a, b) => b.kills - a.kills)
-                .map(p => `
-                    <div class="scoreboard-entry">
-                        <div class="name" style="color: ${teamColors[p.teamIndex]}">${p.name}</div>
-                        <div class="stats">K: ${p.kills} | D: ${p.deaths} | HP: ${p.hp}/${p.maxHp}</div>
-                        <div class="team-label">${teamNames[p.teamIndex]}</div>
-                    </div>
-                `)
-                .join('');
-        }
-
-        function render() {
-            ctx.fillStyle = 'rgba(26, 26, 46, 0.3)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw grid
-            ctx.strokeStyle = 'rgba(0, 255, 136, 0.1)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i <= canvas.width; i += 50) {
-                ctx.beginPath();
-                ctx.moveTo(i, 0);
-                ctx.lineTo(i, canvas.height);
-                ctx.stroke();
-            }
-            for (let i = 0; i <= canvas.height; i += 50) {
-                ctx.beginPath();
-                ctx.moveTo(0, i);
-                ctx.lineTo(canvas.width, i);
-                ctx.stroke();
-            }
-
-            if (!gameState) return;
-
-            // Draw projectiles with trails
-            gameState.projectiles.forEach((proj, idx) => {
-                // Glow effect
-                const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, 12);
-                gradient.addColorStop(0, 'rgba(255, 200, 0, 0.8)');
-                gradient.addColorStop(0.5, 'rgba(255, 200, 0, 0.3)');
-                gradient.addColorStop(1, 'rgba(255, 200, 0, 0)');
-                
-                ctx.fillStyle = gradient;
-                ctx.beginPath();
-                ctx.arc(proj.x, proj.y, 12, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Core
-                ctx.fillStyle = '#ffff00';
-                ctx.beginPath();
-                ctx.arc(proj.x, proj.y, 6, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Bright center
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(proj.x, proj.y, 3, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Trail line
-                const prevX = proj.x - proj.vx * 3;
-                const prevY = proj.y - proj.vy * 3;
-                ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(prevX, prevY);
-                ctx.lineTo(proj.x, proj.y);
-                ctx.stroke();
-            });
-
-            // Draw players
-            gameState.players.forEach(player => {
-                const color = teamColors[player.teamIndex];
-
-                ctx.save();
-                ctx.translate(player.x, player.y);
-                ctx.rotate(player.angle);
-
-                // Shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.fillRect(-22, -17, 44, 34);
-
-                // Tank hull (main body)
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.roundRect(-22, -15, 44, 30, 3);
-                ctx.fill();
-
-                // Hull detail lines
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(-20, -12);
-                ctx.lineTo(-20, 12);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(20, -12);
-                ctx.lineTo(20, 12);
-                ctx.stroke();
-
-                // Track pattern (left)
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.lineWidth = 2;
-                for (let i = -14; i <= 14; i += 4) {
-                    ctx.beginPath();
-                    ctx.moveTo(-22, i);
-                    ctx.lineTo(-24, i);
-                    ctx.stroke();
-                }
-
-                // Track pattern (right)
-                for (let i = -14; i <= 14; i += 4) {
-                    ctx.beginPath();
-                    ctx.moveTo(22, i);
-                    ctx.lineTo(24, i);
-                    ctx.stroke();
-                }
-
-                // Turret base (circle)
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.arc(0, 0, 13, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Turret inner detail
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.beginPath();
-                ctx.arc(0, 0, 10, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Turret shine
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.beginPath();
-                ctx.arc(-3, -3, 4, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Gun barrel (longer and thicker)
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 6;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(32, 0);
-                ctx.stroke();
-
-                // Gun shine
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(5, -2);
-                ctx.lineTo(28, -2);
-                ctx.stroke();
-
-                // Muzzle
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-                ctx.lineWidth = 5;
-                ctx.beginPath();
-                ctx.moveTo(33, 0);
-                ctx.lineTo(36, 0);
-                ctx.stroke();
-
-                // Gun flash (om just skjutit)
-                if (Math.random() > 0.7) {
-                    ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
-                    ctx.beginPath();
-                    ctx.arc(36, 0, 4, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-
-                ctx.restore();
-
-                // HP bar above tank
-                const barWidth = 50;
-                const barHeight = 5;
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 40, barWidth, barHeight);
-
-                ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 40, barWidth * (player.hp / 100), barHeight);
-
-                // Border
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(player.x - barWidth / 2, player.y - 40, barWidth, barHeight);
-
-                // Player name
-                ctx.fillStyle = color;
-                ctx.font = 'bold 12px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - 52);
-
-                // Alive/Dead indicator
-                if (!player.alive) {
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
-                    ctx.font = 'bold 14px Courier New';
-                    ctx.fillText('X', player.x, player.y);
-                }
-            });
-
-            // Draw borders
-            ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
-        }
-
-        // Initialize
         getGames();
         setInterval(getGames, 3000);
     </script>
