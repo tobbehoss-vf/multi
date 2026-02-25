@@ -124,32 +124,25 @@ class Game {
 
   update() {
     if (this.state !== 'playing') {
-      // console.log(`Game ${this.gameId} is not playing, state=${this.state}`);
       return;
     }
 
-    // Update projectiles
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+    // Update and filter projectiles
+    const projectilesToKeep = [];
+    
+    for (let i = 0; i < this.projectiles.length; i++) {
       const proj = this.projectiles[i];
-      const oldX = proj.x;
-      const oldY = proj.y;
       proj.x += proj.vx;
       proj.y += proj.vy;
       proj.age++;
 
-      // Debug: log movement
-      if (i === 0 && this.projectiles.length > 0) {
-        console.log(`Proj moved from (${oldX.toFixed(0)}, ${oldY.toFixed(0)}) to (${proj.x.toFixed(0)}, ${proj.y.toFixed(0)}), age=${proj.age}`);
-      }
-
       // Check if projectile is out of bounds or expired
       if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
-        console.log(`Projectile expired at age ${proj.age}, final pos=(${proj.x.toFixed(0)}, ${proj.y.toFixed(0)})`);
-        this.projectiles.splice(i, 1);
-        continue;
+        continue; // Skip this projectile, don't add to keep list
       }
 
       // Check collision with players
+      let hit = false;
       for (let playerId in this.players) {
         const target = this.players[playerId];
         if (target.id === proj.playerId || !target.alive) continue;
@@ -160,7 +153,6 @@ class Game {
 
         if (dist < 30) {
           // Hit!
-          console.log(`Hit! ${proj.playerName} hit ${target.name}`);
           target.hp -= proj.damage;
 
           if (target.hp <= 0) {
@@ -172,17 +164,24 @@ class Game {
             if (shooter) {
               shooter.kills++;
               this.scores[proj.teamIndex] += 20;
-              console.log(`Kill! ${shooter.name} killed ${target.name}`);
             }
           } else {
             this.scores[proj.teamIndex] += 1;
           }
 
-          this.projectiles.splice(i, 1);
+          hit = true;
           break;
         }
       }
+
+      // Bara behåll projektil om den inte träffade och är inom kartan
+      if (!hit) {
+        projectilesToKeep.push(proj);
+      }
     }
+
+    // Ersätt projektil-arrayen med de som överlevde
+    this.projectiles = projectilesToKeep;
 
     // Respawn dead players
     for (let playerId in this.players) {
