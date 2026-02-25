@@ -19,13 +19,13 @@
         .form-group input, .form-group select { width: 100%; padding: 8px; background: rgba(0, 255, 255, 0.1); border: 1px solid #0064ff; color: #fff; border-radius: 4px; font-family: 'Courier New', monospace; }
         button { background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%); color: #000; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; }
         button:hover { transform: scale(1.05); }
-        #gameContainer { display: none; width: 100%; height: 100vh; position: relative; }
-        #gameCanvas { width: 100%; height: 100%; display: block; background: #2a3a4a; }
         
-        /* TOP HUD */
-        #topHUD { position: absolute; top: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.7); border-bottom: 2px solid #00ff88; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+        #gameContainer { display: none; width: 100%; height: 100vh; flex-direction: column; }
         
-        /* Player info box (left side) */
+        /* TOP HUD - Separate from game area */
+        #topHUD { background: rgba(0, 0, 0, 0.8); border-bottom: 2px solid #00ff88; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-shrink: 0; height: 140px; }
+        
+        /* Player info box (left) */
         #playerInfoBox { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; }
         #playerInfoBox h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
         #playerStats { display: flex; gap: 20px; align-items: center; }
@@ -42,10 +42,6 @@
         .ammo-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; }
         .ammo-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
         
-        /* Reload progress */
-        .reload-progress { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ffff00; border-radius: 2px; overflow: hidden; }
-        .reload-fill { height: 100%; background: #ffff00; transition: width 0.05s; }
-        
         /* Team scores (center) */
         #teamScores { display: flex; gap: 15px; }
         .team-score { padding: 8px 12px; border: 2px solid; border-radius: 4px; background: rgba(0, 0, 0, 0.5); font-weight: bold; min-width: 120px; text-align: center; }
@@ -54,13 +50,17 @@
         .team-yellow { border-color: #ffff00; color: #ffff00; }
         .team-green { border-color: #00ff88; color: #00ff88; }
         
-        /* Player list (right side) */
+        /* Player list (right) */
         #playerList { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; max-height: 120px; overflow-y: auto; max-width: 400px; }
         #playerList h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
         .player-entry { display: flex; gap: 15px; align-items: center; margin-bottom: 6px; padding: 4px; background: rgba(0, 255, 136, 0.05); border-left: 2px solid; border-radius: 2px; font-size: 0.85em; }
         .player-name { color: #00ffff; font-weight: bold; min-width: 100px; }
         .player-health { color: #ff3333; min-width: 50px; }
         .player-ammo { color: #00ffff; min-width: 40px; }
+        
+        /* GAME AREA - Full remaining space */
+        #gameArea { flex: 1; width: 100%; display: flex; position: relative; }
+        #gameCanvas { width: 100%; height: 100%; display: block; background: #2a3a4a; }
         
         #gameList { max-height: 300px; overflow-y: auto; }
         .game-item { background: rgba(0, 255, 136, 0.05); border-left: 3px solid #00ffff; padding: 10px; margin-bottom: 8px; cursor: pointer; border-radius: 4px; }
@@ -116,9 +116,7 @@
         </div>
 
         <div id="gameContainer">
-            <canvas id="gameCanvas"></canvas>
-            
-            <!-- TOP HUD -->
+            <!-- TOP HUD - SEPARATE SECTION -->
             <div id="topHUD">
                 <!-- Player info (left) -->
                 <div id="playerInfoBox">
@@ -127,17 +125,10 @@
                         <div class="stat-group">
                             <span class="label">HP</span>
                             <div class="health-bar"><div class="health-fill" id="hpFill" style="width: 100%;"></div></div>
-                            <span class="value" id="hpValue">100/100</span>
                         </div>
                         <div class="stat-group">
                             <span class="label">AMMO</span>
                             <div class="ammo-bar"><div class="ammo-fill" id="ammoFill" style="width: 100%;"></div></div>
-                            <span class="value" id="ammoValue">10/10</span>
-                        </div>
-                        <div class="stat-group">
-                            <span class="label">RELOAD</span>
-                            <div class="reload-progress"><div class="reload-fill" id="reloadFill" style="width: 0%;"></div></div>
-                            <span class="value" id="reloadValue">-</span>
                         </div>
                     </div>
                 </div>
@@ -157,7 +148,11 @@
                 </div>
             </div>
 
-            <button onclick="leaveGame()" class="leave-btn">Lämna</button>
+            <!-- GAME AREA - Full remaining space -->
+            <div id="gameArea">
+                <canvas id="gameCanvas"></canvas>
+                <button onclick="leaveGame()" class="leave-btn">Lämna</button>
+            </div>
         </div>
     </div>
 
@@ -168,7 +163,6 @@
         let currentGameId = null;
         let currentPlayerId = null;
         let isPlaying = false;
-        let reloadStartTime = 0;
 
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
         const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
@@ -280,7 +274,7 @@
                     currentPlayerId = result.playerId;
                     isPlaying = true;
                     document.getElementById('lobbyScreen').style.display = 'none';
-                    document.getElementById('gameContainer').style.display = 'block';
+                    document.getElementById('gameContainer').style.display = 'flex';
                 }
             });
         }
@@ -401,10 +395,6 @@
             }
         }, 30);
 
-        canvas.addEventListener('mousemove', e => {
-            // Mouse only used for clicking, not aiming
-        });
-
         canvas.addEventListener('click', () => {
             if (isPlaying && socket) {
                 socket.emit('shoot', currentGameId);
@@ -415,7 +405,6 @@
             e.preventDefault();
             if (isPlaying && socket) {
                 socket.emit('reload', currentGameId);
-                reloadStartTime = Date.now();
             }
         });
 
@@ -424,22 +413,8 @@
 
             const player = gameState.players.find(p => p.id === currentPlayerId);
             if (player) {
-                document.getElementById('hpValue').textContent = `${player.hp}/100`;
                 document.getElementById('hpFill').style.width = (player.hp / 100 * 100) + '%';
-                
-                document.getElementById('ammoValue').textContent = `${player.ammo}/10`;
                 document.getElementById('ammoFill').style.width = (player.ammo / 10 * 100) + '%';
-
-                // Reload progress
-                if (player.isReloading) {
-                    const elapsed = Date.now() - reloadStartTime;
-                    const progress = Math.min(100, (elapsed / 2000) * 100);
-                    document.getElementById('reloadFill').style.width = progress + '%';
-                    document.getElementById('reloadValue').textContent = Math.ceil((2000 - elapsed) / 1000) + 's';
-                } else {
-                    document.getElementById('reloadFill').style.width = '0%';
-                    document.getElementById('reloadValue').textContent = '-';
-                }
             }
 
             document.getElementById('scoreBlue').textContent = gameState.scores[0];
