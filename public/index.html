@@ -274,7 +274,7 @@
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
-            ctx.drawImage(img, -24, -24, 48, 48); // 48x48 istället för 50x50
+            ctx.drawImage(img, -50, -50, 100, 100); // 48x48 istället för 50x50
             ctx.restore();
         }
 
@@ -285,8 +285,8 @@
                 return;
             }
 
-            const mapWidth = 800;
-            const mapHeight = 600;
+            const mapWidth = 1600;
+            const mapHeight = 1200;
 
             // Clear background
             ctx.fillStyle = '#2a3a4a';
