@@ -52,7 +52,7 @@ class Projectile {
     this.damage = 20;
     this.lifetime = 2000; // frames - längre livslängd
     this.age = 0;
-    console.log(`Projectile created: angle=${angle.toFixed(2)}, vx=${this.vx.toFixed(2)}, vy=${this.vy.toFixed(2)}`);
+    //console.log(`Projectile created: angle=${angle.toFixed(2)}, vx=${this.vx.toFixed(2)}, vy=${this.vy.toFixed(2)}`);
   }
 }
 
@@ -129,6 +129,7 @@ class Game {
 
     // Update and filter projectiles
     const projectilesToKeep = [];
+    //console.log(`[UPDATE START] ${this.projectiles.length} projectiles before update`);
     
     for (let i = 0; i < this.projectiles.length; i++) {
       const proj = this.projectiles[i];
@@ -138,6 +139,7 @@ class Game {
 
       // Check if projectile is out of bounds or expired
       if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
+        //console.log(`[PROJ REMOVED] Out of bounds or expired. Age: ${proj.age}, Lifetime: ${proj.lifetime}, Pos: (${proj.x.toFixed(0)}, ${proj.y.toFixed(0)})`);
         continue; // Skip this projectile, don't add to keep list
       }
 
@@ -153,6 +155,7 @@ class Game {
 
         if (dist < 30) {
           // Hit!
+          //console.log(`[HIT] Projectile hit! Distance: ${dist.toFixed(0)}`);
           target.hp -= proj.damage;
 
           if (target.hp <= 0) {
@@ -182,6 +185,7 @@ class Game {
 
     // Ersätt projektil-arrayen med de som överlevde
     this.projectiles = projectilesToKeep;
+    //console.log(`[UPDATE END] ${this.projectiles.length} projectiles after update`);
 
     // Respawn dead players
     for (let playerId in this.players) {
@@ -234,7 +238,7 @@ class Game {
 
 // Socket connections
 io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+  //console.log('Player connected:', socket.id);
 
   socket.on('getGames', (callback) => {
     const gameList = Object.keys(games).map(id => ({
@@ -342,11 +346,13 @@ io.on('connection', (socket) => {
     game.projectiles.push(projectile);
     player.ammo--;
 
-    console.log(`[SHOOT] ${player.name} shot! Now ${game.projectiles.length} projectiles in game`);
+    // Skicka event för att spela ljud bara när skott verkligen skjuts
+    socket.emit('shotFired');
 
     if (player.ammo === 0) {
       player.isReloading = true;
       player.reloadStartTime = Date.now();
+      player.reloadTime = 1500; // 1.5 sekunder reload-tid
     }
 
     io.to(gameId).emit('gameStateUpdate', game.getGameState());
@@ -390,7 +396,7 @@ io.on('connection', (socket) => {
       }
       delete players[socket.id];
     }
-    console.log('Player disconnected:', socket.id);
+    //console.log('Player disconnected:', socket.id);
   });
 });
 
@@ -401,17 +407,17 @@ setInterval(() => {
   for (let gameId in games) {
     const game = games[gameId];
     if (loopCount % 60 === 0) { // Log every 60 frames (1 sec)
-      console.log(`[GameLoop] Game ${gameId}: state=${game.state}, players=${game.players.length}, projectiles=${game.projectiles.length}`);
+      //console.log(`[GameLoop] Game ${gameId}: state=${game.state}, players=${game.players.length}, projectiles=${game.projectiles.length}`);
     }
     game.update();
     const state = game.getGameState();
     if (state.projectiles.length > 0) {
-      console.log(`[Update] Game ${gameId}: ${state.projectiles.length} projectiles after update`, state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
+      //console.log(`[Update] Game ${gameId}: ${state.projectiles.length} projectiles after update`, state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
     }
     io.to(gameId).emit('gameStateUpdate', state);
   }
 }, 1000 / 60); // 60 FPS
 
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  //console.log(`Server running on port ${PORT}`);
 });
