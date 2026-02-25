@@ -189,6 +189,7 @@
 
             socket.on('gameStateUpdate', (state) => {
                 gameState = state;
+                console.log(`[GAME STATE] Players: ${state.players.length}, Projectiles: ${state.projectiles ? state.projectiles.length : 0}`);
                 updateUI();
             });
         }
@@ -292,6 +293,7 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             if (gameState.players.length === 0) {
+                console.log('[RENDER] No players');
                 return;
             }
 
@@ -309,6 +311,7 @@
 
             // Draw projectiles - LARGE and VISIBLE
             if (gameState && gameState.projectiles && Array.isArray(gameState.projectiles) && gameState.projectiles.length > 0) {
+                console.log(`[RENDER] Drawing ${gameState.projectiles.length} projectiles`);
                 gameState.projectiles.forEach(p => {
                     // Large glow
                     const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
@@ -392,6 +395,7 @@
 
         canvas.addEventListener('click', () => {
             if (isPlaying && socket) {
+                console.log('[SHOOT] Firing projectile');
                 playShootSound();
                 socket.emit('shoot', currentGameId);
             }
