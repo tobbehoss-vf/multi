@@ -257,121 +257,122 @@
             }
         }
 
-        // Draw a detailed tank
+        // Draw a detailed tank - 30% smaller
         function drawTank(ctx, x, y, angle, color) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
 
+            const scale = 0.7; // 30% smaller
             const darkColor = 'rgba(30, 30, 40, 0.7)';
 
             // TRACKS
             ctx.fillStyle = '#2a2a2a';
-            ctx.fillRect(-26, -16, 52, 6);
-            ctx.fillRect(-26, 10, 52, 6);
+            ctx.fillRect(-26 * scale, -16 * scale, 52 * scale, 6 * scale);
+            ctx.fillRect(-26 * scale, 10 * scale, 52 * scale, 6 * scale);
 
             ctx.fillStyle = '#1a1a1a';
             for (let i = -24; i < 26; i += 6) {
-                ctx.fillRect(i, -16, 4, 6);
-                ctx.fillRect(i, 10, 4, 6);
+                ctx.fillRect(i * scale, -16 * scale, 4 * scale, 6 * scale);
+                ctx.fillRect(i * scale, 10 * scale, 4 * scale, 6 * scale);
             }
 
             // HULL
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.moveTo(-22, -12);
-            ctx.lineTo(22, -12);
-            ctx.lineTo(24, 12);
-            ctx.lineTo(-24, 12);
+            ctx.moveTo(-22 * scale, -12 * scale);
+            ctx.lineTo(22 * scale, -12 * scale);
+            ctx.lineTo(24 * scale, 12 * scale);
+            ctx.lineTo(-24 * scale, 12 * scale);
             ctx.closePath();
             ctx.fill();
 
             ctx.fillStyle = darkColor;
-            ctx.fillRect(-22, 6, 44, 6);
+            ctx.fillRect(-22 * scale, 6 * scale, 44 * scale, 6 * scale);
 
             ctx.strokeStyle = darkColor;
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(-8, -12);
-            ctx.lineTo(-8, 12);
+            ctx.moveTo(-8 * scale, -12 * scale);
+            ctx.lineTo(-8 * scale, 12 * scale);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(8, -12);
-            ctx.lineTo(8, 12);
+            ctx.moveTo(8 * scale, -12 * scale);
+            ctx.lineTo(8 * scale, 12 * scale);
             ctx.stroke();
 
             // WINDOWS
             ctx.fillStyle = '#001a33';
-            ctx.fillRect(-16, -10, 6, 5);
-            ctx.fillRect(-2, -10, 6, 5);
-            ctx.fillRect(10, -10, 6, 5);
-            ctx.fillRect(-8, 7, 6, 5);
+            ctx.fillRect(-16 * scale, -10 * scale, 6 * scale, 5 * scale);
+            ctx.fillRect(-2 * scale, -10 * scale, 6 * scale, 5 * scale);
+            ctx.fillRect(10 * scale, -10 * scale, 6 * scale, 5 * scale);
+            ctx.fillRect(-8 * scale, 7 * scale, 6 * scale, 5 * scale);
 
             ctx.fillStyle = 'rgba(100, 150, 200, 0.3)';
-            ctx.fillRect(-15, -9, 3, 2);
-            ctx.fillRect(-1, -9, 3, 2);
+            ctx.fillRect(-15 * scale, -9 * scale, 3 * scale, 2 * scale);
+            ctx.fillRect(-1 * scale, -9 * scale, 3 * scale, 2 * scale);
 
             // TURRET
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(0, -1, 14, 0, Math.PI * 2);
+            ctx.arc(0, -1 * scale, 14 * scale, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.strokeStyle = darkColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(0, -1, 14, 0, Math.PI * 2);
+            ctx.arc(0, -1 * scale, 14 * scale, 0, Math.PI * 2);
             ctx.stroke();
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.beginPath();
-            ctx.arc(-5, -8, 3, 0, Math.PI * 2);
+            ctx.arc(-5 * scale, -8 * scale, 3 * scale, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.strokeStyle = darkColor;
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(0, -1, 11, 0, Math.PI * 2);
+            ctx.arc(0, -1 * scale, 11 * scale, 0, Math.PI * 2);
             ctx.stroke();
 
             // CENTER DOME
             ctx.fillStyle = 'rgba(50, 50, 60, 0.9)';
             ctx.beginPath();
-            ctx.arc(0, -2, 4, 0, Math.PI * 2);
+            ctx.arc(0, -2 * scale, 4 * scale, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.fillStyle = '#0a1a2a';
             ctx.beginPath();
-            ctx.arc(0, -2, 2, 0, Math.PI * 2);
+            ctx.arc(0, -2 * scale, 2 * scale, 0, Math.PI * 2);
             ctx.fill();
 
             // GUN
             ctx.strokeStyle = color;
-            ctx.lineWidth = 7;
+            ctx.lineWidth = 7 * scale;
             ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(0, -1);
-            ctx.lineTo(35, -1);
+            ctx.moveTo(0, -1 * scale);
+            ctx.lineTo(35 * scale, -1 * scale);
             ctx.stroke();
 
             ctx.strokeStyle = darkColor;
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 4 * scale;
             ctx.beginPath();
-            ctx.moveTo(0, -1);
-            ctx.lineTo(35, -1);
+            ctx.moveTo(0, -1 * scale);
+            ctx.lineTo(35 * scale, -1 * scale);
             ctx.stroke();
 
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(2, -3);
-            ctx.lineTo(33, -3);
+            ctx.moveTo(2 * scale, -3 * scale);
+            ctx.lineTo(33 * scale, -3 * scale);
             ctx.stroke();
 
             ctx.fillStyle = darkColor;
-            ctx.fillRect(34, -4, 8, 6);
+            ctx.fillRect(34 * scale, -4 * scale, 8 * scale, 6 * scale);
             ctx.fillStyle = '#0a0a0a';
-            ctx.fillRect(35, -3, 6, 4);
+            ctx.fillRect(35 * scale, -3 * scale, 6 * scale, 4 * scale);
 
             ctx.restore();
         }
@@ -384,8 +385,8 @@
                 return;
             }
 
-            const mapWidth = 500;
-            const mapHeight = 400;
+            const mapWidth = 800;
+            const mapHeight = 600;
 
             // Clear
             ctx.fillStyle = '#0a0a1a';
@@ -509,8 +510,8 @@
             const player = gameState.players.find(p => p.id === currentPlayerId);
             if (!player) return;
 
-            const mapWidth = 500;
-            const mapHeight = 400;
+            const mapWidth = 800;
+            const mapHeight = 600;
             const scaleX = canvas.width / mapWidth;
             const scaleY = canvas.height / mapHeight;
             const scale = Math.min(scaleX, scaleY);
