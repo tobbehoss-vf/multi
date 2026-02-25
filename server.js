@@ -91,7 +91,7 @@ class Game {
     }
   }
 
-  isColliding(x, y, radius = 32) {
+  isColliding(x, y, radius = 16) {
     // Check collision with obstacles
     for (let obs of this.obstacles) {
       if (x + radius > obs.x && x - radius < obs.x + obs.w &&
