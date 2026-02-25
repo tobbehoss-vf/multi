@@ -83,7 +83,7 @@ class Game {
   }
 
   canStartGame() {
-    return Object.keys(this.players).length >= 2;
+    return Object.keys(this.players).length >= 1; // Start with just 1 player for testing
   }
 
   startGame() {
@@ -397,13 +397,18 @@ io.on('connection', (socket) => {
 });
 
 // Game loop
+let loopCount = 0;
 setInterval(() => {
+  loopCount++;
   for (let gameId in games) {
     const game = games[gameId];
+    if (loopCount % 60 === 0) { // Log every 60 frames (1 sec)
+      console.log(`[GameLoop] Game ${gameId}: state=${game.state}, players=${game.players.length}, projectiles=${game.projectiles.length}`);
+    }
     game.update();
     const state = game.getGameState();
     if (state.projectiles.length > 0) {
-      console.log(`Game ${gameId}: ${state.players.length} players, ${state.projectiles.length} projectiles, state=${state.state}`);
+      console.log(`[Update] Game ${gameId}: ${state.projectiles.length} projectiles after update`, state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
     }
     io.to(gameId).emit('gameStateUpdate', state);
   }
