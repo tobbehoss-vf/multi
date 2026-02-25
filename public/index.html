@@ -257,123 +257,137 @@
             }
         }
 
-        // Draw a detailed tank - 30% smaller
+        // Draw a detailed tank - 30% smaller with better rendering
         function drawTank(ctx, x, y, angle, color) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
 
-            const scale = 0.7; // 30% smaller
+            // Use integer scaling for crisper graphics
+            const scale = 0.7;
             const darkColor = 'rgba(30, 30, 40, 0.7)';
 
-            // TRACKS
-            ctx.fillStyle = '#2a2a2a';
-            ctx.fillRect(-26 * scale, -16 * scale, 52 * scale, 6 * scale);
-            ctx.fillRect(-26 * scale, 10 * scale, 52 * scale, 6 * scale);
+            // Enable image smoothing off for crisp rendering
+            ctx.imageSmoothingEnabled = false;
 
+            // TRACKS - solid fills
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(-18, -11, 36, 4);
+            ctx.fillRect(-18, 7, 36, 4);
+
+            // Track pattern
             ctx.fillStyle = '#1a1a1a';
-            for (let i = -24; i < 26; i += 6) {
-                ctx.fillRect(i * scale, -16 * scale, 4 * scale, 6 * scale);
-                ctx.fillRect(i * scale, 10 * scale, 4 * scale, 6 * scale);
+            for (let i = -16; i < 18; i += 4) {
+                ctx.fillRect(i, -11, 3, 4);
+                ctx.fillRect(i, 7, 3, 4);
             }
 
-            // HULL
+            // HULL - main body
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.moveTo(-22 * scale, -12 * scale);
-            ctx.lineTo(22 * scale, -12 * scale);
-            ctx.lineTo(24 * scale, 12 * scale);
-            ctx.lineTo(-24 * scale, 12 * scale);
+            ctx.moveTo(-15, -8);
+            ctx.lineTo(15, -8);
+            ctx.lineTo(17, 8);
+            ctx.lineTo(-17, 8);
             ctx.closePath();
             ctx.fill();
 
+            // Hull shading
             ctx.fillStyle = darkColor;
-            ctx.fillRect(-22 * scale, 6 * scale, 44 * scale, 6 * scale);
+            ctx.fillRect(-15, 4, 30, 4);
 
+            // Hull panel lines
             ctx.strokeStyle = darkColor;
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(-8 * scale, -12 * scale);
-            ctx.lineTo(-8 * scale, 12 * scale);
+            ctx.moveTo(-6, -8);
+            ctx.lineTo(-6, 8);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(8 * scale, -12 * scale);
-            ctx.lineTo(8 * scale, 12 * scale);
+            ctx.moveTo(6, -8);
+            ctx.lineTo(6, 8);
             ctx.stroke();
 
             // WINDOWS
             ctx.fillStyle = '#001a33';
-            ctx.fillRect(-16 * scale, -10 * scale, 6 * scale, 5 * scale);
-            ctx.fillRect(-2 * scale, -10 * scale, 6 * scale, 5 * scale);
-            ctx.fillRect(10 * scale, -10 * scale, 6 * scale, 5 * scale);
-            ctx.fillRect(-8 * scale, 7 * scale, 6 * scale, 5 * scale);
+            ctx.fillRect(-11, -7, 4, 3);
+            ctx.fillRect(-1, -7, 4, 3);
+            ctx.fillRect(7, -7, 4, 3);
+            ctx.fillRect(-5, 5, 4, 3);
 
             ctx.fillStyle = 'rgba(100, 150, 200, 0.3)';
-            ctx.fillRect(-15 * scale, -9 * scale, 3 * scale, 2 * scale);
-            ctx.fillRect(-1 * scale, -9 * scale, 3 * scale, 2 * scale);
+            ctx.fillRect(-10, -6, 2, 1);
+            ctx.fillRect(0, -6, 2, 1);
 
-            // TURRET
+            // TURRET - circular
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(0, -1 * scale, 14 * scale, 0, Math.PI * 2);
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.strokeStyle = darkColor;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(0, -1 * scale, 14 * scale, 0, Math.PI * 2);
-            ctx.stroke();
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.beginPath();
-            ctx.arc(-5 * scale, -8 * scale, 3 * scale, 0, Math.PI * 2);
-            ctx.fill();
-
+            // Turret outline
             ctx.strokeStyle = darkColor;
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(0, -1 * scale, 11 * scale, 0, Math.PI * 2);
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Turret shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.beginPath();
+            ctx.arc(-3, -5, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Turret inner ring
+            ctx.strokeStyle = darkColor;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, Math.PI * 2);
             ctx.stroke();
 
             // CENTER DOME
             ctx.fillStyle = 'rgba(50, 50, 60, 0.9)';
             ctx.beginPath();
-            ctx.arc(0, -2 * scale, 4 * scale, 0, Math.PI * 2);
+            ctx.arc(0, 0, 3, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.fillStyle = '#0a1a2a';
             ctx.beginPath();
-            ctx.arc(0, -2 * scale, 2 * scale, 0, Math.PI * 2);
+            ctx.arc(0, 0, 1, 0, Math.PI * 2);
             ctx.fill();
 
-            // GUN
+            // GUN BARREL - long barrel
             ctx.strokeStyle = color;
-            ctx.lineWidth = 7 * scale;
+            ctx.lineWidth = 5;
             ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(0, -1 * scale);
-            ctx.lineTo(35 * scale, -1 * scale);
+            ctx.moveTo(0, 0);
+            ctx.lineTo(25, 0);
             ctx.stroke();
 
+            // Gun inner shadow
             ctx.strokeStyle = darkColor;
-            ctx.lineWidth = 4 * scale;
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(0, -1 * scale);
-            ctx.lineTo(35 * scale, -1 * scale);
+            ctx.moveTo(0, 0);
+            ctx.lineTo(25, 0);
             ctx.stroke();
 
+            // Gun shine line
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(2 * scale, -3 * scale);
-            ctx.lineTo(33 * scale, -3 * scale);
+            ctx.moveTo(1, -2);
+            ctx.lineTo(24, -2);
             ctx.stroke();
 
+            // Gun muzzle
             ctx.fillStyle = darkColor;
-            ctx.fillRect(34 * scale, -4 * scale, 8 * scale, 6 * scale);
+            ctx.fillRect(24, -3, 6, 5);
             ctx.fillStyle = '#0a0a0a';
-            ctx.fillRect(35 * scale, -3 * scale, 6 * scale, 4 * scale);
+            ctx.fillRect(25, -2, 4, 3);
 
+            ctx.imageSmoothingEnabled = true;
             ctx.restore();
         }
 
