@@ -391,11 +391,11 @@
             ctx.fillStyle = '#0a0a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Debug info
-            ctx.fillStyle = '#00ff88';
-            ctx.font = '11px Courier New';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Spelare: ${gameState.players.length} | Skott: ${gameState.projectiles.length}`, 10, 20);
+            // Debug info - removed to clean up display
+            // ctx.fillStyle = '#00ff88';
+            // ctx.font = '11px Courier New';
+            // ctx.textAlign = 'left';
+            // ctx.fillText(`Spelare: ${gameState.players.length} | Skott: ${gameState.projectiles.length}`, 10, 20);
 
             if (gameState.players.length === 0) {
                 return;
