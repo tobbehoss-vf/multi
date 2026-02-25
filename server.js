@@ -44,13 +44,13 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 15; // Ökad från 12
-    this.vy = Math.sin(angle) * 15;
+    this.vx = Math.cos(angle) * 8; // Sänkt från 15
+    this.vy = Math.sin(angle) * 8;
     this.playerId = playerId;
     this.playerName = playerName;
     this.teamIndex = teamIndex;
     this.damage = 20;
-    this.lifetime = 500; // frames
+    this.lifetime = 2000; // frames - längre livslängd
     this.age = 0;
     console.log(`Projectile created: angle=${angle.toFixed(2)}, vx=${this.vx.toFixed(2)}, vy=${this.vy.toFixed(2)}`);
   }
@@ -328,7 +328,6 @@ io.on('connection', (socket) => {
 
     const game = games[gameId];
     if (!game) {
-      console.log('Game not found for shoot:', gameId);
       return;
     }
 
@@ -343,7 +342,7 @@ io.on('connection', (socket) => {
     game.projectiles.push(projectile);
     player.ammo--;
 
-    console.log(`Shoot: created projectile, now ${game.projectiles.length} projectiles in game`);
+    console.log(`[SHOOT] ${player.name} shot! Now ${game.projectiles.length} projectiles in game`);
 
     if (player.ammo === 0) {
       player.isReloading = true;
