@@ -272,7 +272,7 @@
             
             ctx.save();
             ctx.translate(x, y);
-            ctx.rotate(angle);
+            ctx.rotate(angle - Math.PI / 2); // -90 grader eftersom pipa pekar uppåt på bilden
             ctx.drawImage(img, -25, -25, 50, 50);
             ctx.restore();
         }
