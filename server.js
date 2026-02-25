@@ -32,8 +32,8 @@ class Player {
     this.lives = 3;
     this.kills = 0;
     this.deaths = 0;
-    this.ammo = 20;
-    this.maxAmmo = 20;
+    this.ammo = 10;
+    this.maxAmmo = 10;
     this.isReloading = false;
     this.reloadStartTime = 0;
     this.alive = true;
@@ -151,11 +151,10 @@ class Game {
 
         const dx = target.x - proj.x;
         const dy = target.y - proj.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const distSq = dx * dx + dy * dy;
 
-        if (dist < 30) {
+        if (distSq < 900) { // 30*30 = 900 (utan sqrt)
           // Hit!
-          //console.log(`[HIT] Projectile hit! Distance: ${dist.toFixed(0)}`);
           target.hp -= proj.damage;
 
           if (target.hp <= 0) {
