@@ -170,7 +170,7 @@
 
         function playShootSound() {
             shootSound.currentTime = 0;
-            shootSound.play().catch(e => console.log('Sound play failed:', e));
+            shootSound.play().catch(e => //console.log('Sound play failed:', e));
         }
 
         function initSocket() {
@@ -189,8 +189,12 @@
 
             socket.on('gameStateUpdate', (state) => {
                 gameState = state;
-                console.log(`[GAME STATE] Players: ${state.players.length}, Projectiles: ${state.projectiles ? state.projectiles.length : 0}`);
+                //console.log(`[GAME STATE] Players: ${state.players.length}, Projectiles: ${state.projectiles ? state.projectiles.length : 0}`);
                 updateUI();
+            });
+
+            socket.on('shotFired', () => {
+                playShootSound();
             });
         }
 
@@ -285,15 +289,15 @@
                 return;
             }
 
-            const mapWidth = 1600;
-            const mapHeight = 1200;
+            const mapWidth = 800;
+            const mapHeight = 600;
 
             // Clear background
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             if (gameState.players.length === 0) {
-                console.log('[RENDER] No players');
+                //console.log('[RENDER] No players');
                 return;
             }
 
@@ -311,7 +315,7 @@
 
             // Draw projectiles - LARGE and VISIBLE
             if (gameState && gameState.projectiles && Array.isArray(gameState.projectiles) && gameState.projectiles.length > 0) {
-                console.log(`[RENDER] Drawing ${gameState.projectiles.length} projectiles`);
+                //console.log(`[RENDER] Drawing ${gameState.projectiles.length} projectiles`);
                 gameState.projectiles.forEach(p => {
                     // Large glow
                     const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
@@ -395,8 +399,6 @@
 
         canvas.addEventListener('click', () => {
             if (isPlaying && socket) {
-                console.log('[SHOOT] Firing projectile');
-                playShootSound();
                 socket.emit('shoot', currentGameId);
             }
         });
