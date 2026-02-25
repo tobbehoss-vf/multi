@@ -412,8 +412,8 @@
                 return;
             }
 
-            const mapWidth = 800;
-            const mapHeight = 600;
+            const mapWidth = 500;
+            const mapHeight = 400;
             
             const scaleX = (canvas.width * 0.95) / mapWidth;
             const scaleY = (canvas.height * 0.95) / mapHeight;
@@ -527,8 +527,8 @@
             const player = gameState.players.find(p => p.id === currentPlayerId);
             if (!player) return;
 
-            const mapWidth = 800;
-            const mapHeight = 600;
+            const mapWidth = 500;
+            const mapHeight = 400;
             const scaleX = (canvas.width * 0.95) / mapWidth;
             const scaleY = (canvas.height * 0.95) / mapHeight;
             const scale = Math.min(scaleX, scaleY);
