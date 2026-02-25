@@ -110,14 +110,14 @@ class Game {
 
   getSpawnPoints() {
     const points = [
-      { x: 75, y: 75, angle: 0 },
-      { x: 425, y: 75, angle: Math.PI },
-      { x: 75, y: 325, angle: Math.PI / 2 },
-      { x: 425, y: 325, angle: -Math.PI / 2 },
-      { x: 250, y: 75, angle: 0 },
-      { x: 250, y: 325, angle: Math.PI },
-      { x: 75, y: 200, angle: Math.PI / 2 },
-      { x: 425, y: 200, angle: -Math.PI / 2 }
+      { x: 100, y: 100, angle: 0 },
+      { x: 700, y: 100, angle: Math.PI },
+      { x: 100, y: 500, angle: Math.PI / 2 },
+      { x: 700, y: 500, angle: -Math.PI / 2 },
+      { x: 400, y: 100, angle: 0 },
+      { x: 400, y: 500, angle: Math.PI },
+      { x: 100, y: 300, angle: Math.PI / 2 },
+      { x: 700, y: 300, angle: -Math.PI / 2 }
     ];
     return points;
   }
@@ -143,7 +143,7 @@ class Game {
       }
 
       // Check if projectile is out of bounds or expired
-      if (proj.x < 0 || proj.x > 500 || proj.y < 0 || proj.y > 400 || proj.age >= proj.lifetime) {
+      if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
         console.log(`Projectile expired at age ${proj.age}, final pos=(${proj.x.toFixed(0)}, ${proj.y.toFixed(0)})`);
         this.projectiles.splice(i, 1);
         continue;
@@ -310,8 +310,8 @@ io.on('connection', (socket) => {
     }
 
     // Keep player in bounds
-    player.x = Math.max(25, Math.min(475, player.x));
-    player.y = Math.max(25, Math.min(375, player.y));
+    player.x = Math.max(25, Math.min(775, player.x));
+    player.y = Math.max(25, Math.min(575, player.y));
   });
 
   socket.on('aim', (angle, gameId) => {
