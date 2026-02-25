@@ -172,10 +172,6 @@
             });
 
             socket.on('gameStateUpdate', (state) => {
-                console.log('Received gameStateUpdate:', state.players.length, 'players,', state.projectiles.length, 'projectiles');
-                if (state.projectiles.length > 0) {
-                    console.log('Projectile positions:', state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
-                }
                 gameState = state;
                 updateUI();
             });
@@ -185,7 +181,7 @@
             });
         }
 
-        // Game functions - GLOBAL so they can be called from HTML
+        // Game functions - GLOBAL
         function getGames() {
             if (!socket) return;
             socket.emit('getGames', games => {
@@ -235,14 +231,12 @@
                 teamIndex: parseInt(document.getElementById('teamIndex').value),
                 tankType: document.getElementById('tankType').value
             }, result => {
-                console.log('Join result:', result);
                 if (result.success) {
                     currentGameId = gid;
                     currentPlayerId = result.playerId;
                     isPlaying = true;
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
-                    console.log('Game started with player ID:', result.playerId);
                 }
             });
         }
@@ -262,78 +256,147 @@
             }
         }
 
+        // Draw a detailed tank
+        function drawTank(ctx, x, y, angle, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            // Tracks (left and right)
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+            for (let i = -10; i <= 10; i += 3) {
+                ctx.fillRect(-23, i, 4, 2);
+                ctx.fillRect(19, i, 4, 2);
+            }
+
+            // Main hull (body)
+            ctx.fillStyle = color;
+            ctx.fillRect(-20, -13, 40, 26);
+
+            // Hull details - side lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-20, -8);
+            ctx.lineTo(-20, 8);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(20, -8);
+            ctx.lineTo(20, 8);
+            ctx.stroke();
+
+            // Windows
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(-12, -10, 6, 4);
+            ctx.fillRect(6, -10, 6, 4);
+
+            // Turret base (circular)
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Turret shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath();
+            ctx.arc(-4, -4, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Gun barrel (long and thick)
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(30, 0);
+            ctx.stroke();
+
+            // Gun shine
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(5, -1);
+            ctx.lineTo(28, -1);
+            ctx.stroke();
+
+            // Muzzle (barrel opening)
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(30, 0);
+            ctx.lineTo(35, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
         // Rendering
         function render() {
             ctx.fillStyle = '#0a0a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Debug info
+            // Debug info - smaller and less intrusive
             ctx.fillStyle = '#00ff88';
-            ctx.font = '14px Courier New';
+            ctx.font = '11px Courier New';
             ctx.textAlign = 'left';
+            ctx.fillText(`Spelare: ${gameState ? gameState.players.length : 0} | Skott: ${gameState ? gameState.projectiles.length : 0}`, 10, 20);
 
-            if (!gameState) {
-                ctx.fillText('No gameState yet...', 20, 30);
+            if (!gameState || gameState.players.length === 0) {
                 return;
             }
 
-            ctx.fillText(`Players: ${gameState.players.length}`, 20, 30);
-            ctx.fillText(`State: ${gameState.state}`, 20, 50);
-            ctx.fillText(`Projectiles: ${gameState.projectiles ? gameState.projectiles.length : 0}`, 20, 70);
+            // IMPORTANT: Calculate proper scale to fit entire 800x600 map
+            const mapWidth = 800;
+            const mapHeight = 600;
+            
+            // Keep aspect ratio and fit in canvas with padding
+            const scaleX = (canvas.width * 0.95) / mapWidth;
+            const scaleY = (canvas.height * 0.95) / mapHeight;
+            const scale = Math.min(scaleX, scaleY); // Use smaller scale to fit everything
 
-            if (gameState.players.length === 0) {
-                return;
-            }
-
-            // Calculate scale
-            const scale = Math.min(
-                (canvas.width * 0.9) / 800,
-                (canvas.height * 0.9) / 600
-            );
-
-            const offsetX = (canvas.width - 800 * scale) / 2;
-            const offsetY = (canvas.height - 600 * scale) / 2;
+            const offsetX = (canvas.width - mapWidth * scale) / 2;
+            const offsetY = (canvas.height - mapHeight * scale) / 2;
 
             ctx.save();
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
             // Draw grid
-            ctx.strokeStyle = 'rgba(0, 255, 136, 0.1)';
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.08)';
             ctx.lineWidth = 1;
-            for (let i = 0; i <= 800; i += 50) {
+            for (let i = 0; i <= mapWidth; i += 50) {
                 ctx.beginPath();
                 ctx.moveTo(i, 0);
-                ctx.lineTo(i, 600);
+                ctx.lineTo(i, mapHeight);
                 ctx.stroke();
             }
-            for (let i = 0; i <= 600; i += 50) {
+            for (let i = 0; i <= mapHeight; i += 50) {
                 ctx.beginPath();
                 ctx.moveTo(0, i);
-                ctx.lineTo(800, i);
+                ctx.lineTo(mapWidth, i);
                 ctx.stroke();
             }
 
-            // Draw projectiles BEFORE players
+            // Draw projectiles
             if (gameState.projectiles && gameState.projectiles.length > 0) {
                 gameState.projectiles.forEach(p => {
-                    // Glow effect
-                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
+                    // Glow
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 12);
                     grad.addColorStop(0, 'rgba(255, 255, 0, 0.9)');
                     grad.addColorStop(0.7, 'rgba(255, 150, 0, 0.3)');
                     grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Core yellow
+                    // Core
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // White center
+                    // Center
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
@@ -341,51 +404,31 @@
                 });
             }
 
-            // Draw players
+            // Draw players - NOW WITH DETAILED TANKS!
             gameState.players.forEach(player => {
                 const color = teamColors[player.teamIndex];
+                drawTank(ctx, player.x, player.y, player.angle, color);
 
-                ctx.save();
-                ctx.translate(player.x, player.y);
-                ctx.rotate(player.angle);
+                // HP bar above tank
+                const barWidth = 45;
+                const barHeight = 4;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
 
-                // Body
+                ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth * (player.hp / 100), barHeight);
+
+                // Player name
                 ctx.fillStyle = color;
-                ctx.fillRect(-20, -12, 40, 24);
-
-                // Turret
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.arc(0, 0, 10, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Gun
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(25, 0);
-                ctx.stroke();
-
-                ctx.restore();
-
-                // HP bar
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(player.x - 25, player.y - 30, 50, 4);
-                ctx.fillStyle = player.hp > 50 ? '#00ff88' : '#ffff00';
-                ctx.fillRect(player.x - 25, player.y - 30, 50 * (player.hp / 100), 4);
-
-                // Name
-                ctx.fillStyle = color;
-                ctx.font = 'bold 10px Courier New';
+                ctx.font = 'bold 11px Courier New';
                 ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - 40);
+                ctx.fillText(player.name, player.x, player.y - 48);
             });
 
-            // Border
+            // Map border
             ctx.strokeStyle = '#00ff88';
             ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, 800, 600);
+            ctx.strokeRect(0, 0, mapWidth, mapHeight);
 
             ctx.restore();
         }
@@ -419,12 +462,13 @@
             const player = gameState.players.find(p => p.id === currentPlayerId);
             if (!player) return;
 
-            const scale = Math.min(
-                (canvas.width * 0.9) / 800,
-                (canvas.height * 0.9) / 600
-            );
-            const offsetX = (canvas.width - 800 * scale) / 2;
-            const offsetY = (canvas.height - 600 * scale) / 2;
+            const mapWidth = 800;
+            const mapHeight = 600;
+            const scaleX = (canvas.width * 0.95) / mapWidth;
+            const scaleY = (canvas.height * 0.95) / mapHeight;
+            const scale = Math.min(scaleX, scaleY);
+            const offsetX = (canvas.width - mapWidth * scale) / 2;
+            const offsetY = (canvas.height - mapHeight * scale) / 2;
 
             const gx = (mx - offsetX) / scale;
             const gy = (my - offsetY) / scale;
