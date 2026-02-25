@@ -19,54 +19,33 @@
         .form-group input, .form-group select { width: 100%; padding: 8px; background: rgba(0, 255, 255, 0.1); border: 1px solid #0064ff; color: #fff; border-radius: 4px; font-family: 'Courier New', monospace; }
         button { background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%); color: #000; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; }
         button:hover { transform: scale(1.05); }
-        
-        #gameContainer { display: none; width: 100%; height: 100vh; flex-direction: column; }
-        
-        /* TOP HUD - Separate from game area */
-        #topHUD { background: rgba(0, 0, 0, 0.8); border-bottom: 2px solid #00ff88; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-shrink: 0; height: 140px; }
-        
-        /* Player info box (left) */
-        #playerInfoBox { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; }
-        #playerInfoBox h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
-        #playerStats { display: flex; gap: 20px; align-items: center; }
-        
-        .stat-group { display: flex; flex-direction: column; gap: 3px; }
-        .stat-group .label { color: #00ffff; font-size: 0.8em; }
-        .stat-group .value { color: #fff; font-size: 1.1em; font-weight: bold; }
-        
-        /* Health bar */
-        .health-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ff3333; border-radius: 2px; overflow: hidden; }
-        .health-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
-        
-        /* Ammo bar */
-        .ammo-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; }
-        .ammo-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
-        
-        /* Team scores (center) */
-        #teamScores { display: flex; gap: 15px; }
-        .team-score { padding: 8px 12px; border: 2px solid; border-radius: 4px; background: rgba(0, 0, 0, 0.5); font-weight: bold; min-width: 120px; text-align: center; }
-        .team-blue { border-color: #0099ff; color: #0099ff; }
-        .team-red { border-color: #ff3333; color: #ff3333; }
-        .team-yellow { border-color: #ffff00; color: #ffff00; }
-        .team-green { border-color: #00ff88; color: #00ff88; }
-        
-        /* Player list (right) */
-        #playerList { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; max-height: 120px; overflow-y: auto; max-width: 400px; }
-        #playerList h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
-        .player-entry { display: flex; gap: 15px; align-items: center; margin-bottom: 6px; padding: 4px; background: rgba(0, 255, 136, 0.05); border-left: 2px solid; border-radius: 2px; font-size: 0.85em; }
-        .player-name { color: #00ffff; font-weight: bold; min-width: 100px; }
-        .player-health { color: #ff3333; min-width: 50px; }
-        .player-ammo { color: #00ffff; min-width: 40px; }
-        
-        /* GAME AREA - Full remaining space */
-        #gameArea { flex: 1; width: 100%; display: flex; position: relative; }
+        #gameContainer { display: none; width: 100%; height: 100vh; position: relative; }
         #gameCanvas { width: 100%; height: 100%; display: block; background: #2a3a4a; }
-        
+        .overlay-ui { position: absolute; pointer-events: none; }
+        .game-header { position: absolute; top: 15px; left: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .score-item { padding: 8px 12px; border: 2px solid; border-radius: 4px; font-weight: bold; background: rgba(0, 0, 0, 0.6); font-size: 0.95em; }
+        .score-blue { border-color: #0099ff; color: #0099ff; }
+        .score-red { border-color: #ff3333; color: #ff3333; }
+        .score-yellow { border-color: #ffff00; color: #ffff00; }
+        .score-green { border-color: #00ff88; color: #00ff88; }
+        .sidebar { position: absolute; right: 15px; top: 15px; width: 240px; background: rgba(0, 0, 0, 0.7); border: 2px solid #00ff88; border-radius: 4px; padding: 12px; max-height: 75vh; overflow-y: auto; pointer-events: auto; }
+        .sidebar-section { margin-bottom: 15px; }
+        .sidebar-section h3 { color: #00ff88; margin-bottom: 8px; border-bottom: 1px solid #00ff88; padding-bottom: 3px; font-size: 0.85em; }
+        .player-stat { margin-bottom: 6px; color: #00ffff; font-size: 0.85em; }
+        .hp-bar { width: 100%; height: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ff3333; border-radius: 2px; overflow: hidden; margin-top: 2px; }
+        .hp-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
+        .ammo-bar { width: 100%; height: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; margin-top: 2px; }
+        .ammo-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
+        .scoreboard { font-size: 0.75em; }
+        .scoreboard-entry { background: rgba(0, 255, 136, 0.05); padding: 4px; margin-bottom: 3px; border-left: 2px solid #00ffff; border-radius: 2px; }
+        .scoreboard-entry .name { color: #00ffff; font-weight: bold; font-size: 0.9em; }
+        .scoreboard-entry .stats { color: #00ff88; font-size: 0.8em; margin-top: 1px; }
+        .controls { background: rgba(0, 0, 0, 0.3); padding: 8px; border: 1px solid #00ff88; border-radius: 4px; font-size: 0.75em; line-height: 1.5; }
+        .controls strong { color: #00ff88; }
         #gameList { max-height: 300px; overflow-y: auto; }
         .game-item { background: rgba(0, 255, 136, 0.05); border-left: 3px solid #00ffff; padding: 10px; margin-bottom: 8px; cursor: pointer; border-radius: 4px; }
         .game-item:hover { background: rgba(0, 255, 136, 0.15); }
-        
-        .leave-btn { position: absolute; bottom: 15px; right: 15px; }
+        .leave-btn { position: absolute; bottom: 15px; right: 15px; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -116,41 +95,37 @@
         </div>
 
         <div id="gameContainer">
-            <!-- TOP HUD - SEPARATE SECTION -->
-            <div id="topHUD">
-                <!-- Player info (left) -->
-                <div id="playerInfoBox">
-                    <h3>Din Tank</h3>
-                    <div id="playerStats">
-                        <div class="stat-group">
-                            <span class="label">HP</span>
-                            <div class="health-bar"><div class="health-fill" id="hpFill" style="width: 100%;"></div></div>
-                        </div>
-                        <div class="stat-group">
-                            <span class="label">AMMO</span>
-                            <div class="ammo-bar"><div class="ammo-fill" id="ammoFill" style="width: 100%;"></div></div>
-                        </div>
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="overlay-ui">
+                <div class="game-header">
+                    <div class="score-item score-blue">BLÅ: <span id="scoreBlue">0</span></div>
+                    <div class="score-item score-red">RÖD: <span id="scoreRed">0</span></div>
+                    <div class="score-item score-yellow">GUL: <span id="scoreYellow">0</span></div>
+                    <div class="score-item score-green">GRÖN: <span id="scoreGreen">0</span></div>
+                </div>
+
+                <div class="sidebar">
+                    <div class="sidebar-section">
+                        <h3>Din tank</h3>
+                        <div class="player-stat">HP: <span id="playerHealth">100</span>/100</div>
+                        <div class="hp-bar"><div class="hp-fill" id="hpBar" style="width: 100%;"></div></div>
+                        <div class="player-stat" style="margin-top: 6px;">Ammo: <span id="playerAmmo">10</span>/10</div>
+                        <div class="ammo-bar"><div class="ammo-fill" id="ammoBar" style="width: 100%;"></div></div>
+                        <div class="player-stat" style="margin-top: 6px;">Liv: <span id="playerLives">3</span></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <h3>Scoreboard</h3>
+                        <div id="scoreboard" class="scoreboard"></div>
+                    </div>
+                    <div class="controls">
+                        <strong>W/A/S/D</strong> Flytta<br>
+                        <strong>Mus</strong> Sikta<br>
+                        <strong>Click</strong> Skjut<br>
+                        <strong>R-Click</strong> Reload
                     </div>
                 </div>
 
-                <!-- Team scores (center) -->
-                <div id="teamScores">
-                    <div class="team-score team-blue">BLÅ: <span id="scoreBlue">0</span></div>
-                    <div class="team-score team-red">RÖD: <span id="scoreRed">0</span></div>
-                    <div class="team-score team-yellow">GUL: <span id="scoreYellow">0</span></div>
-                    <div class="team-score team-green">GRÖN: <span id="scoreGreen">0</span></div>
-                </div>
-
-                <!-- Player list (right) -->
-                <div id="playerList">
-                    <h3>Players</h3>
-                    <div id="playerListContent"></div>
-                </div>
-            </div>
-
-            <!-- GAME AREA - Full remaining space -->
-            <div id="gameArea">
-                <canvas id="gameCanvas"></canvas>
                 <button onclick="leaveGame()" class="leave-btn">Lämna</button>
             </div>
         </div>
@@ -169,7 +144,7 @@
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = false; // CRISP rendering
 
         const tankImages = {};
         
@@ -182,6 +157,7 @@
                         resolve();
                     };
                     img.onerror = () => {
+                        console.error(`Failed to load tank_${color}.png`);
                         resolve();
                     };
                     img.src = `/tank_${color}.png`;
@@ -213,6 +189,7 @@
 
             socket.on('gameStateUpdate', (state) => {
                 gameState = state;
+                //console.log(`[GAME STATE] Players: ${state.players.length}, Projectiles: ${state.projectiles ? state.projectiles.length : 0}`);
                 updateUI();
             });
 
@@ -274,7 +251,7 @@
                     currentPlayerId = result.playerId;
                     isPlaying = true;
                     document.getElementById('lobbyScreen').style.display = 'none';
-                    document.getElementById('gameContainer').style.display = 'flex';
+                    document.getElementById('gameContainer').style.display = 'block';
                 }
             });
         }
@@ -301,7 +278,7 @@
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
-            ctx.drawImage(img, -32, -32, 64, 64);
+            ctx.drawImage(img, -24, -24, 48, 48); // 48x48 istället för 50x50
             ctx.restore();
         }
 
@@ -312,29 +289,35 @@
                 return;
             }
 
-            const mapWidth = 1400;
+            const mapWidth = 800;
             const mapHeight = 600;
 
+            // Clear background
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             if (gameState.players.length === 0) {
+                //console.log('[RENDER] No players');
                 return;
             }
 
+            // Calculate scale and offsets
             const scaleX = canvas.width / mapWidth;
             const scaleY = canvas.height / mapHeight;
             const scale = Math.min(scaleX, scaleY);
             const offsetX = (canvas.width - mapWidth * scale) / 2;
             const offsetY = (canvas.height - mapHeight * scale) / 2;
 
+            // Save context state
             ctx.save();
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            // Draw projectiles
+            // Draw projectiles - LARGE and VISIBLE
             if (gameState && gameState.projectiles && Array.isArray(gameState.projectiles) && gameState.projectiles.length > 0) {
+                //console.log(`[RENDER] Drawing ${gameState.projectiles.length} projectiles`);
                 gameState.projectiles.forEach(p => {
+                    // Large glow
                     const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
                     grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
                     grad.addColorStop(0.6, 'rgba(255, 200, 0, 0.5)');
@@ -344,11 +327,13 @@
                     ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                     ctx.fill();
 
+                    // Core
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
                     ctx.fill();
 
+                    // Center
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
@@ -356,23 +341,16 @@
                 });
             }
 
-            // Draw players with names, health and ammo
+            // Draw players - tanks
             gameState.players.forEach(player => {
                 drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
-
-                // Draw name above tank
-                ctx.fillStyle = teamColors[player.teamIndex];
-                ctx.font = 'bold 11px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - 50);
-
-                // Draw health and ammo below
-                ctx.font = '9px Courier New';
-                ctx.fillStyle = '#00ff88';
-                ctx.fillText(`HP:${player.hp} AMO:${player.ammo}`, player.x, player.y + 45);
             });
 
+            // Restore context BEFORE drawing scaled text
             ctx.restore();
+
+            // Draw UI overlays on TOP of game (unscaled)
+            // Removed HP bars - only show tanks
         }
 
         function gameLoop() {
@@ -381,7 +359,7 @@
         }
         gameLoop();
 
-        // Input
+        // Input handling
         const keys = {};
         window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -395,6 +373,30 @@
             }
         }, 30);
 
+        canvas.addEventListener('mousemove', e => {
+            if (!isPlaying || !gameState || !currentPlayerId || !socket) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            const player = gameState.players.find(p => p.id === currentPlayerId);
+            if (!player) return;
+
+            const mapWidth = 800;
+            const mapHeight = 600;
+            const scaleX = canvas.width / mapWidth;
+            const scaleY = canvas.height / mapHeight;
+            const scale = Math.min(scaleX, scaleY);
+            const offsetX = (canvas.width - mapWidth * scale) / 2;
+            const offsetY = (canvas.height - mapHeight * scale) / 2;
+
+            const gx = (mx - offsetX) / scale;
+            const gy = (my - offsetY) / scale;
+
+            const angle = Math.atan2(gy - player.y, gx - player.x);
+            socket.emit('aim', angle, currentGameId);
+        });
+
         canvas.addEventListener('click', () => {
             if (isPlaying && socket) {
                 socket.emit('shoot', currentGameId);
@@ -403,9 +405,7 @@
 
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
-            if (isPlaying && socket) {
-                socket.emit('reload', currentGameId);
-            }
+            if (isPlaying && socket) socket.emit('reload', currentGameId);
         });
 
         function updateUI() {
@@ -413,8 +413,11 @@
 
             const player = gameState.players.find(p => p.id === currentPlayerId);
             if (player) {
-                document.getElementById('hpFill').style.width = (player.hp / 100 * 100) + '%';
-                document.getElementById('ammoFill').style.width = (player.ammo / 10 * 100) + '%';
+                document.getElementById('playerHealth').textContent = player.hp;
+                document.getElementById('playerAmmo').textContent = player.ammo;
+                document.getElementById('playerLives').textContent = player.lives;
+                document.getElementById('hpBar').style.width = (player.hp / 100 * 100) + '%';
+                document.getElementById('ammoBar').style.width = (player.ammo / 10 * 100) + '%';
             }
 
             document.getElementById('scoreBlue').textContent = gameState.scores[0];
@@ -422,14 +425,10 @@
             document.getElementById('scoreYellow').textContent = gameState.scores[2];
             document.getElementById('scoreGreen').textContent = gameState.scores[3];
 
-            // Player list
-            const listContent = document.getElementById('playerListContent');
-            listContent.innerHTML = gameState.players
-                .map(p => `<div class="player-entry">
-                    <span class="player-name" style="color: ${teamColors[p.teamIndex]}">${p.name}</span>
-                    <span class="player-health">HP:${p.hp}</span>
-                    <span class="player-ammo">A:${p.ammo}</span>
-                </div>`)
+            const sb = document.getElementById('scoreboard');
+            sb.innerHTML = gameState.players
+                .sort((a, b) => b.kills - a.kills)
+                .map(p => `<div class="scoreboard-entry"><div class="name" style="color: ${teamColors[p.teamIndex]}">${p.name}</div><div class="stats">K:${p.kills} D:${p.deaths}</div></div>`)
                 .join('');
         }
 
