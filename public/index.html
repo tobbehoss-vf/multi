@@ -20,31 +20,32 @@
         button { background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%); color: #000; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; }
         button:hover { transform: scale(1.05); }
         #gameContainer { display: none; width: 100%; height: 100vh; position: relative; }
-        #gameCanvas { width: 100%; height: 100%; display: block; background: linear-gradient(135deg, #1a2a3a 0%, #2a3a4a 100%); }
-        .game-header { position: absolute; top: 15px; left: 15px; display: flex; gap: 15px; flex-wrap: wrap; }
-        .score-item { padding: 8px 15px; border: 2px solid; border-radius: 4px; font-weight: bold; background: rgba(0, 0, 0, 0.5); }
+        #gameCanvas { width: 100%; height: 100%; display: block; background: #2a3a4a; }
+        .overlay-ui { position: absolute; pointer-events: none; }
+        .game-header { position: absolute; top: 15px; left: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .score-item { padding: 8px 12px; border: 2px solid; border-radius: 4px; font-weight: bold; background: rgba(0, 0, 0, 0.6); font-size: 0.95em; }
         .score-blue { border-color: #0099ff; color: #0099ff; }
         .score-red { border-color: #ff3333; color: #ff3333; }
         .score-yellow { border-color: #ffff00; color: #ffff00; }
         .score-green { border-color: #00ff88; color: #00ff88; }
-        .sidebar { position: absolute; right: 15px; top: 15px; width: 250px; background: rgba(0, 0, 0, 0.7); border: 2px solid #00ff88; border-radius: 4px; padding: 15px; max-height: 80vh; overflow-y: auto; }
-        .sidebar-section { margin-bottom: 20px; }
-        .sidebar-section h3 { color: #00ff88; margin-bottom: 10px; border-bottom: 1px solid #00ff88; padding-bottom: 5px; font-size: 0.9em; }
-        .player-stat { margin-bottom: 8px; color: #00ffff; font-size: 0.9em; }
-        .hp-bar { width: 100%; height: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ff3333; border-radius: 2px; overflow: hidden; margin-top: 3px; }
+        .sidebar { position: absolute; right: 15px; top: 15px; width: 240px; background: rgba(0, 0, 0, 0.7); border: 2px solid #00ff88; border-radius: 4px; padding: 12px; max-height: 75vh; overflow-y: auto; pointer-events: auto; }
+        .sidebar-section { margin-bottom: 15px; }
+        .sidebar-section h3 { color: #00ff88; margin-bottom: 8px; border-bottom: 1px solid #00ff88; padding-bottom: 3px; font-size: 0.85em; }
+        .player-stat { margin-bottom: 6px; color: #00ffff; font-size: 0.85em; }
+        .hp-bar { width: 100%; height: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ff3333; border-radius: 2px; overflow: hidden; margin-top: 2px; }
         .hp-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
-        .ammo-bar { width: 100%; height: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; margin-top: 3px; }
+        .ammo-bar { width: 100%; height: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; margin-top: 2px; }
         .ammo-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
-        .scoreboard { font-size: 0.8em; }
-        .scoreboard-entry { background: rgba(0, 255, 136, 0.05); padding: 5px; margin-bottom: 5px; border-left: 2px solid #00ffff; border-radius: 2px; }
+        .scoreboard { font-size: 0.75em; }
+        .scoreboard-entry { background: rgba(0, 255, 136, 0.05); padding: 4px; margin-bottom: 3px; border-left: 2px solid #00ffff; border-radius: 2px; }
         .scoreboard-entry .name { color: #00ffff; font-weight: bold; font-size: 0.9em; }
-        .scoreboard-entry .stats { color: #00ff88; font-size: 0.8em; margin-top: 2px; }
-        .controls { background: rgba(0, 0, 0, 0.3); padding: 10px; border: 1px solid #00ff88; border-radius: 4px; font-size: 0.8em; line-height: 1.6; }
+        .scoreboard-entry .stats { color: #00ff88; font-size: 0.8em; margin-top: 1px; }
+        .controls { background: rgba(0, 0, 0, 0.3); padding: 8px; border: 1px solid #00ff88; border-radius: 4px; font-size: 0.75em; line-height: 1.5; }
         .controls strong { color: #00ff88; }
         #gameList { max-height: 300px; overflow-y: auto; }
         .game-item { background: rgba(0, 255, 136, 0.05); border-left: 3px solid #00ffff; padding: 10px; margin-bottom: 8px; cursor: pointer; border-radius: 4px; }
         .game-item:hover { background: rgba(0, 255, 136, 0.15); }
-        .leave-btn { position: absolute; bottom: 15px; right: 15px; }
+        .leave-btn { position: absolute; bottom: 15px; right: 15px; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -96,35 +97,37 @@
         <div id="gameContainer">
             <canvas id="gameCanvas"></canvas>
             
-            <div class="game-header">
-                <div class="score-item score-blue">BLÅ: <span id="scoreBlue">0</span></div>
-                <div class="score-item score-red">RÖD: <span id="scoreRed">0</span></div>
-                <div class="score-item score-yellow">GUL: <span id="scoreYellow">0</span></div>
-                <div class="score-item score-green">GRÖN: <span id="scoreGreen">0</span></div>
-            </div>
+            <div class="overlay-ui">
+                <div class="game-header">
+                    <div class="score-item score-blue">BLÅ: <span id="scoreBlue">0</span></div>
+                    <div class="score-item score-red">RÖD: <span id="scoreRed">0</span></div>
+                    <div class="score-item score-yellow">GUL: <span id="scoreYellow">0</span></div>
+                    <div class="score-item score-green">GRÖN: <span id="scoreGreen">0</span></div>
+                </div>
 
-            <div class="sidebar">
-                <div class="sidebar-section">
-                    <h3>Din tank</h3>
-                    <div class="player-stat">HP: <span id="playerHealth">100</span>/100</div>
-                    <div class="hp-bar"><div class="hp-fill" id="hpBar" style="width: 100%;"></div></div>
-                    <div class="player-stat" style="margin-top: 10px;">Ammo: <span id="playerAmmo">10</span>/10</div>
-                    <div class="ammo-bar"><div class="ammo-fill" id="ammoBar" style="width: 100%;"></div></div>
-                    <div class="player-stat" style="margin-top: 10px;">Liv: <span id="playerLives">3</span></div>
+                <div class="sidebar">
+                    <div class="sidebar-section">
+                        <h3>Din tank</h3>
+                        <div class="player-stat">HP: <span id="playerHealth">100</span>/100</div>
+                        <div class="hp-bar"><div class="hp-fill" id="hpBar" style="width: 100%;"></div></div>
+                        <div class="player-stat" style="margin-top: 6px;">Ammo: <span id="playerAmmo">10</span>/10</div>
+                        <div class="ammo-bar"><div class="ammo-fill" id="ammoBar" style="width: 100%;"></div></div>
+                        <div class="player-stat" style="margin-top: 6px;">Liv: <span id="playerLives">3</span></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <h3>Scoreboard</h3>
+                        <div id="scoreboard" class="scoreboard"></div>
+                    </div>
+                    <div class="controls">
+                        <strong>W/A/S/D</strong> Flytta<br>
+                        <strong>Mus</strong> Sikta<br>
+                        <strong>Click</strong> Skjut<br>
+                        <strong>R-Click</strong> Reload
+                    </div>
                 </div>
-                <div class="sidebar-section">
-                    <h3>Scoreboard</h3>
-                    <div id="scoreboard" class="scoreboard"></div>
-                </div>
-                <div class="controls">
-                    <strong>W/A/S/D</strong> Flytta<br>
-                    <strong>Mus</strong> Sikta<br>
-                    <strong>Vänsterkl</strong> Skjut<br>
-                    <strong>Högerkl</strong> Reload
-                </div>
-            </div>
 
-            <button onclick="leaveGame()" class="leave-btn">Lämna</button>
+                <button onclick="leaveGame()" class="leave-btn">Lämna</button>
+            </div>
         </div>
     </div>
 
@@ -137,13 +140,12 @@
         let isPlaying = false;
 
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
-        const teamNames = ['Blå', 'Röd', 'Gul', 'Grön'];
         const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false; // CRISP rendering
 
-        // Pre-load tank images
         const tankImages = {};
         
         function loadTankImages() {
@@ -163,7 +165,6 @@
             }));
         }
 
-        // Sound effect
         const shootSound = new Audio('/smg.mp3');
         shootSound.volume = 0.3;
 
@@ -172,7 +173,6 @@
             shootSound.play().catch(e => console.log('Sound play failed:', e));
         }
 
-        // Initialize socket
         function initSocket() {
             if (typeof io === 'undefined') {
                 setTimeout(initSocket, 100);
@@ -182,28 +182,17 @@
             socket = io();
 
             socket.on('connect', () => {
-                console.log('Connected to server');
                 loadTankImages().then(() => {
-                    console.log('Tank images loaded');
                     getGames();
                 });
-            });
-
-            socket.on('disconnect', () => {
-                console.log('Disconnected from server');
             });
 
             socket.on('gameStateUpdate', (state) => {
                 gameState = state;
                 updateUI();
             });
-
-            socket.on('gameStarted', () => {
-                console.log('Game started!');
-            });
         }
 
-        // Game functions
         function getGames() {
             if (!socket) return;
             socket.emit('getGames', games => {
@@ -277,27 +266,20 @@
             }
         }
 
-        // Draw tank from image
         function drawTank(ctx, x, y, angle, colorIndex) {
-            const colorName = teamColorsArray[colorIndex];
-            const img = tankImages[colorName];
-            
+            const img = tankImages[teamColorsArray[colorIndex]];
             if (!img) return;
             
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
-            
-            const displaySize = 50;
-            ctx.drawImage(img, -displaySize/2, -displaySize/2, displaySize, displaySize);
-            
+            ctx.drawImage(img, -25, -25, 50, 50);
             ctx.restore();
         }
 
-        // Rendering
         function render() {
             if (!gameState) {
-                ctx.fillStyle = '#1a2a3a';
+                ctx.fillStyle = '#2a3a4a';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 return;
             }
@@ -305,7 +287,7 @@
             const mapWidth = 800;
             const mapHeight = 600;
 
-            // Clear with lighter background
+            // Clear background
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -313,63 +295,80 @@
                 return;
             }
 
-            // Calculate scale
+            // Calculate scale and offsets
             const scaleX = canvas.width / mapWidth;
             const scaleY = canvas.height / mapHeight;
             const scale = Math.min(scaleX, scaleY);
-
             const offsetX = (canvas.width - mapWidth * scale) / 2;
             const offsetY = (canvas.height - mapHeight * scale) / 2;
 
+            // Save context state
             ctx.save();
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            // Draw projectiles
+            // Draw projectiles - LARGE and VISIBLE
             if (gameState.projectiles && gameState.projectiles.length > 0) {
                 gameState.projectiles.forEach(p => {
-                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 12);
-                    grad.addColorStop(0, 'rgba(255, 255, 0, 0.9)');
-                    grad.addColorStop(0.7, 'rgba(255, 150, 0, 0.3)');
+                    // Large glow
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
+                    grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
+                    grad.addColorStop(0.6, 'rgba(255, 200, 0, 0.5)');
                     grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                     ctx.fill();
 
+                    // Core
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
                     ctx.fill();
 
+                    // Center
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
                     ctx.fill();
                 });
             }
 
-            // Draw players
+            // Draw players - tanks
             gameState.players.forEach(player => {
                 drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
 
-                // HP bar
-                const barWidth = 45;
-                const barHeight = 4;
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 40, barWidth, barHeight);
-
-                ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 40, barWidth * (player.hp / 100), barHeight);
-
-                // Name
-                ctx.fillStyle = teamColors[player.teamIndex];
-                ctx.font = 'bold 11px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - 53);
+                // HP bar - UNSCALED (will restore after)
             });
 
+            // Restore context BEFORE drawing scaled text
             ctx.restore();
+
+            // Draw UI overlays on TOP of game (unscaled)
+            // HP bars and names on SCREEN coordinates
+            if (gameState.players && gameState.players.length > 0) {
+                gameState.players.forEach(player => {
+                    // Convert game coordinates to screen coordinates
+                    const screenX = offsetX + player.x * scale;
+                    const screenY = offsetY + player.y * scale;
+
+                    // Draw name - CRISP and CLEAR
+                    ctx.fillStyle = teamColors[player.teamIndex];
+                    ctx.font = 'bold 12px Courier New';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(player.name, screenX, screenY - 35 * scale);
+
+                    // HP bar - visible and crisp
+                    const barWidth = 45 * scale;
+                    const barHeight = 4;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    ctx.fillRect(screenX - barWidth / 2, screenY - 28 * scale, barWidth, barHeight);
+
+                    ctx.fillStyle = player.hp > 50 ? '#00ff88' : player.hp > 20 ? '#ffff00' : '#ff3333';
+                    ctx.fillRect(screenX - barWidth / 2, screenY - 28 * scale, barWidth * (player.hp / 100), barHeight);
+                });
+            }
         }
 
         function gameLoop() {
@@ -378,7 +377,7 @@
         }
         gameLoop();
 
-        // Input
+        // Input handling
         const keys = {};
         window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
