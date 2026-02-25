@@ -281,7 +281,7 @@
             }));
         }
 
-        // Draw tank from image
+        // Draw tank from image - scaled to fit game
         function drawTank(ctx, x, y, angle, colorIndex) {
             const colorName = teamColorsArray[colorIndex];
             const img = tankImages[colorName];
@@ -292,9 +292,9 @@
             ctx.translate(x, y);
             ctx.rotate(angle);
             
-            // Draw image centered
-            const size = 48;
-            ctx.drawImage(img, -size/2, -size/2, size, size);
+            // Scale tanks to appropriate game size (about 50x50 pixels)
+            const displaySize = 50;
+            ctx.drawImage(img, -displaySize/2, -displaySize/2, displaySize, displaySize);
             
             ctx.restore();
         }
