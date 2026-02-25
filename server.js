@@ -67,6 +67,15 @@ class Game {
     this.scores = [0, 0, 0, 0];
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
+    
+    // Define obstacles (x, y, width, height)
+    this.obstacles = [
+      { x: 300, y: 150, w: 60, h: 300 },   // Left-middle vertical
+      { x: 1040, y: 150, w: 60, h: 300 },  // Right-middle vertical
+      { x: 550, y: 200, w: 300, h: 50 },   // Upper-middle horizontal
+      { x: 550, y: 350, w: 300, h: 50 },   // Lower-middle horizontal
+      { x: 650, y: 250, w: 100, h: 100 }   // Center square
+    ];
   }
 
   addPlayer(player) {
@@ -82,7 +91,16 @@ class Game {
     }
   }
 
-  canStartGame() {
+  isColliding(x, y, radius = 32) {
+    // Check collision with obstacles
+    for (let obs of this.obstacles) {
+      if (x + radius > obs.x && x - radius < obs.x + obs.w &&
+          y + radius > obs.y && y - radius < obs.y + obs.h) {
+        return true;
+      }
+    }
+    return false;
+  }
     return Object.keys(this.players).length >= 1; // Start with just 1 player for testing
   }
 
@@ -111,13 +129,13 @@ class Game {
   getSpawnPoints() {
     const points = [
       { x: 100, y: 100, angle: 0 },
-      { x: 700, y: 100, angle: Math.PI },
+      { x: 1300, y: 100, angle: Math.PI },
       { x: 100, y: 500, angle: Math.PI / 2 },
-      { x: 700, y: 500, angle: -Math.PI / 2 },
-      { x: 400, y: 100, angle: 0 },
-      { x: 400, y: 500, angle: Math.PI },
+      { x: 1300, y: 500, angle: -Math.PI / 2 },
+      { x: 700, y: 100, angle: 0 },
+      { x: 700, y: 500, angle: Math.PI },
       { x: 100, y: 300, angle: Math.PI / 2 },
-      { x: 700, y: 300, angle: -Math.PI / 2 }
+      { x: 1300, y: 300, angle: -Math.PI / 2 }
     ];
     return points;
   }
@@ -138,9 +156,21 @@ class Game {
       proj.age++;
 
       // Check if projectile is out of bounds or expired
-      if (proj.x < 0 || proj.x > 800 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
-        //console.log(`[PROJ REMOVED] Out of bounds or expired. Age: ${proj.age}, Lifetime: ${proj.lifetime}, Pos: (${proj.x.toFixed(0)}, ${proj.y.toFixed(0)})`);
-        continue; // Skip this projectile, don't add to keep list
+      if (proj.x < 0 || proj.x > 1400 || proj.y < 0 || proj.y > 600 || proj.age >= proj.lifetime) {
+        continue;
+      }
+
+      // Check if projectile hit an obstacle
+      let hitObstacle = false;
+      for (let obs of this.obstacles) {
+        if (proj.x > obs.x && proj.x < obs.x + obs.w &&
+            proj.y > obs.y && proj.y < obs.y + obs.h) {
+          hitObstacle = true;
+          break;
+        }
+      }
+      if (hitObstacle) {
+        continue; // Remove projectile
       }
 
       // Check collision with players
@@ -294,26 +324,36 @@ io.on('connection', (socket) => {
     if (!players[socket.id]) return;
     const { gameId: pGameId, player } = players[socket.id];
     if (pGameId !== gameId) return;
+    const game = games[gameId];
+    if (!game) return;
 
-    const speed = 5; // Ökad från 3
+    const speed = 5;
     const cos = Math.cos(player.angle);
     const sin = Math.sin(player.angle);
+    let newX = player.x;
+    let newY = player.y;
 
     if (direction === 'forward') {
-      player.x += cos * speed;
-      player.y += sin * speed;
+      newX += cos * speed;
+      newY += sin * speed;
     } else if (direction === 'backward') {
-      player.x -= cos * speed;
-      player.y -= sin * speed;
+      newX -= cos * speed;
+      newY -= sin * speed;
     } else if (direction === 'left') {
-      player.angle -= 0.08; // Snabbare rotation
+      player.angle -= 0.08;
     } else if (direction === 'right') {
       player.angle += 0.08;
     }
 
+    // Check collision before moving
+    if (!game.isColliding(newX, newY)) {
+      player.x = newX;
+      player.y = newY;
+    }
+
     // Keep player in bounds
-    player.x = Math.max(25, Math.min(775, player.x));
-    player.y = Math.max(25, Math.min(575, player.y));
+    player.x = Math.max(45, Math.min(1355, player.x));
+    player.y = Math.max(45, Math.min(555, player.y));
   });
 
   socket.on('aim', (angle, gameId) => {
