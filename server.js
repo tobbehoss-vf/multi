@@ -32,8 +32,8 @@ class Player {
     this.lives = 3;
     this.kills = 0;
     this.deaths = 0;
-    this.ammo = 10;
-    this.maxAmmo = 10;
+    this.ammo = 20;
+    this.maxAmmo = 20;
     this.isReloading = false;
     this.reloadStartTime = 0;
     this.alive = true;
