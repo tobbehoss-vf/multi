@@ -272,7 +272,7 @@
             
             ctx.save();
             ctx.translate(x, y);
-            ctx.rotate(angle - Math.PI / 2); // -90 grader eftersom pipa pekar uppåt på bilden
+            ctx.rotate(angle + Math.PI / 2); // +90 grader för att pipa pekar uppåt
             ctx.drawImage(img, -25, -25, 50, 50);
             ctx.restore();
         }
@@ -308,7 +308,7 @@
             ctx.scale(scale, scale);
 
             // Draw projectiles - LARGE and VISIBLE
-            if (gameState.projectiles && gameState.projectiles.length > 0) {
+            if (gameState && gameState.projectiles && Array.isArray(gameState.projectiles) && gameState.projectiles.length > 0) {
                 gameState.projectiles.forEach(p => {
                     // Large glow
                     const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
@@ -337,27 +337,18 @@
             // Draw players - tanks
             gameState.players.forEach(player => {
                 drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
-
-                // HP bar - UNSCALED (will restore after)
             });
 
             // Restore context BEFORE drawing scaled text
             ctx.restore();
 
             // Draw UI overlays on TOP of game (unscaled)
-            // HP bars and names on SCREEN coordinates
+            // HP bars on SCREEN coordinates
             if (gameState.players && gameState.players.length > 0) {
                 gameState.players.forEach(player => {
                     // Convert game coordinates to screen coordinates
                     const screenX = offsetX + player.x * scale;
                     const screenY = offsetY + player.y * scale;
-
-                    // Draw name - CRISP and CLEAR
-                    ctx.fillStyle = teamColors[player.teamIndex];
-                    ctx.font = 'bold 12px Courier New';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillText(player.name, screenX, screenY - 35 * scale);
 
                     // HP bar - visible and crisp
                     const barWidth = 45 * scale;
