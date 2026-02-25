@@ -278,7 +278,7 @@
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
-            ctx.drawImage(img, -64, -64, 128, 128); // 128x128 istället för 52x52
+            ctx.drawImage(img, -32, -32, 64, 64); // 64x64
             ctx.restore();
         }
 
@@ -374,27 +374,7 @@
         }, 30);
 
         canvas.addEventListener('mousemove', e => {
-            if (!isPlaying || !gameState || !currentPlayerId || !socket) return;
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-
-            const player = gameState.players.find(p => p.id === currentPlayerId);
-            if (!player) return;
-
-            const mapWidth = 800;
-            const mapHeight = 600;
-            const scaleX = canvas.width / mapWidth;
-            const scaleY = canvas.height / mapHeight;
-            const scale = Math.min(scaleX, scaleY);
-            const offsetX = (canvas.width - mapWidth * scale) / 2;
-            const offsetY = (canvas.height - mapHeight * scale) / 2;
-
-            const gx = (mx - offsetX) / scale;
-            const gy = (my - offsetY) / scale;
-
-            const angle = Math.atan2(gy - player.y, gx - player.x);
-            socket.emit('aim', angle, currentGameId);
+            // Mouse only used for clicking, not aiming
         });
 
         canvas.addEventListener('click', () => {
