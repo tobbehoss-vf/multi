@@ -44,7 +44,7 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 40; // Sänkt från 15
+    this.vx = Math.cos(angle) * 40;
     this.vy = Math.sin(angle) * 40;
     this.playerId = playerId;
     this.playerName = playerName;
@@ -124,33 +124,48 @@ class Game {
   }
 
   spawnAllPlayers() {
-    const spawnPoints = this.getSpawnPoints();
-    let spawnIndex = 0;
-    
     for (let playerId in this.players) {
       const player = this.players[playerId];
-      const spawn = spawnPoints[spawnIndex % spawnPoints.length];
+      const spawn = this.getSpawnPoint(player.teamIndex);
       player.x = spawn.x;
       player.y = spawn.y;
       player.angle = spawn.angle || 0;
       player.hp = player.maxHp;
       player.alive = true;
-      spawnIndex++;
     }
   }
 
-  getSpawnPoints() {
-    const points = [
-      { x: 100, y: 100, angle: 0 },
-      { x: 1300, y: 100, angle: Math.PI },
-      { x: 100, y: 500, angle: Math.PI / 2 },
-      { x: 1300, y: 500, angle: -Math.PI / 2 },
-      { x: 700, y: 100, angle: 0 },
-      { x: 700, y: 500, angle: Math.PI },
-      { x: 100, y: 300, angle: Math.PI / 2 },
-      { x: 1300, y: 300, angle: -Math.PI / 2 }
-    ];
-    return points;
+  getSpawnPoint(teamIndex) {
+    // Lag-baserade spawn-zoner
+    const spawnZones = {
+      0: [ // Blå - vänster sida
+        { x: 80, y: 100, angle: 0 },
+        { x: 80, y: 200, angle: 0 },
+        { x: 80, y: 500, angle: 0 },
+        { x: 80, y: 400, angle: 0 }
+      ],
+      1: [ // Röd - höger sida
+        { x: 1320, y: 100, angle: Math.PI },
+        { x: 1320, y: 200, angle: Math.PI },
+        { x: 1320, y: 500, angle: Math.PI },
+        { x: 1320, y: 400, angle: Math.PI }
+      ],
+      2: [ // Gul - topp
+        { x: 300, y: 80, angle: Math.PI / 2 },
+        { x: 700, y: 80, angle: Math.PI / 2 },
+        { x: 1100, y: 80, angle: Math.PI / 2 },
+        { x: 500, y: 80, angle: Math.PI / 2 }
+      ],
+      3: [ // Grön - botten
+        { x: 300, y: 520, angle: -Math.PI / 2 },
+        { x: 700, y: 520, angle: -Math.PI / 2 },
+        { x: 1100, y: 520, angle: -Math.PI / 2 },
+        { x: 500, y: 520, angle: -Math.PI / 2 }
+      ]
+    };
+    
+    const zone = spawnZones[teamIndex] || spawnZones[0];
+    return zone[Math.floor(Math.random() * zone.length)];
   }
 
   update() {
@@ -221,18 +236,25 @@ class Game {
     this.projectiles = projectilesToKeep;
     //console.log(`[UPDATE END] ${this.projectiles.length} projectiles after update`);
 
-    // Respawn dead players
+    // Respawn dead players after delay
     for (let playerId in this.players) {
       const player = this.players[playerId];
       if (!player.alive && player.lives > 0) {
-        player.lives--;
-        if (player.lives >= 0) {
-          const spawnPoints = this.getSpawnPoints();
-          const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
-          player.x = spawn.x;
-          player.y = spawn.y;
-          player.hp = player.maxHp;
-          player.alive = true;
+        if (!player.deathTime) {
+          player.deathTime = Date.now();
+        }
+        
+        // Wait 2 seconds before respawning
+        if (Date.now() - player.deathTime > 2000) {
+          player.lives--;
+          if (player.lives >= 0) {
+            const spawn = this.getSpawnPoint(player.teamIndex);
+            player.x = spawn.x;
+            player.y = spawn.y;
+            player.hp = player.maxHp;
+            player.alive = true;
+            player.deathTime = null;
+          }
         }
       }
     }
