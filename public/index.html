@@ -6,33 +6,20 @@
     <title>⚔ TANK BATTLE ⚔</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; }
-        body { 
-            font-family: 'Arial', sans-serif; 
-            background: linear-gradient(135deg, #0a0a15 0%, #1a1a3e 100%);
-            color: #fff; 
-            overflow: hidden; 
-        }
+        html, body { width: 100%; height: 100%; font-family: 'Arial', sans-serif; }
+        body { background: linear-gradient(135deg, #0a0a15 0%, #1a1a3e 100%); color: #fff; overflow: hidden; }
         
         #mainContainer { display: flex; width: 100%; height: 100%; }
         
-        /* LOBBY SCREEN */
         #lobbyScreen { 
-            display: flex; 
-            width: 100%; 
-            height: 100%; 
-            padding: 40px; 
-            justify-content: center; 
-            align-items: center; 
+            display: flex; width: 100%; height: 100%; padding: 40px; 
+            justify-content: center; align-items: center; 
             background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a15 100%);
         }
         
         #lobby { text-align: center; }
-        
-        .lobby-header { margin-bottom: 40px; }
         .lobby-header h1 { 
-            font-size: 4em; 
-            color: #00ff88; 
+            font-size: 4em; color: #00ff88; 
             text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
             margin-bottom: 10px;
             animation: glow 2s ease-in-out infinite;
@@ -43,246 +30,124 @@
             50% { text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff; }
         }
         
-        .lobby-subtitle { 
-            font-size: 1.2em; 
-            color: #00ffff;
-            letter-spacing: 2px;
-        }
+        .lobby-subtitle { font-size: 1.2em; color: #00ffff; letter-spacing: 2px; }
         
         .lobby-content { 
-            background: rgba(0, 0, 0, 0.6);
-            border: 3px solid;
+            background: rgba(0, 0, 0, 0.6); border: 3px solid;
             border-image: linear-gradient(135deg, #00ff88, #00ffff) 1;
-            padding: 50px;
-            border-radius: 15px;
-            max-width: 500px;
+            padding: 50px; border-radius: 15px; max-width: 500px;
             backdrop-filter: blur(10px);
         }
         
-        .lobby-content h2 { 
-            color: #00ff88; 
-            margin-bottom: 30px;
-            font-size: 1.8em;
-        }
+        .lobby-content h2 { color: #00ff88; margin-bottom: 30px; font-size: 1.8em; }
         
-        .form-group { 
-            margin-bottom: 25px; 
-            text-align: left; 
-        }
-        
-        .form-group label { 
-            display: block; 
-            color: #00ffff; 
-            margin-bottom: 8px; 
-            font-weight: bold;
-            font-size: 1.1em;
-        }
-        
+        .form-group { margin-bottom: 25px; text-align: left; }
+        .form-group label { display: block; color: #00ffff; margin-bottom: 8px; font-weight: bold; }
         .form-group input, .form-group select { 
-            width: 100%; 
-            padding: 12px; 
-            background: rgba(0, 255, 255, 0.05);
-            border: 2px solid #00ff88;
-            color: #fff; 
-            border-radius: 8px; 
-            font-family: 'Arial', sans-serif;
-            font-size: 1em;
-            transition: all 0.3s;
-        }
-        
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            background: rgba(0, 255, 255, 0.1);
-            box-shadow: 0 0 10px #00ff88;
-            border-color: #00ffff;
+            width: 100%; padding: 12px; background: rgba(0, 255, 255, 0.05);
+            border: 2px solid #00ff88; color: #fff; border-radius: 8px; font-size: 1em;
         }
         
         button { 
             background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%);
-            color: #000; 
-            border: none; 
-            padding: 14px 40px; 
-            border-radius: 8px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            font-family: 'Arial', sans-serif;
-            font-size: 1.1em;
+            color: #000; border: none; padding: 14px 40px; border-radius: 8px; 
+            font-weight: bold; cursor: pointer; font-size: 1.1em;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5); width: 100%;
             transition: all 0.3s;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
-            width: 100%;
         }
+        button:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 255, 136, 0.8); }
         
-        button:hover { 
-            transform: scale(1.05);
-            box-shadow: 0 0 25px rgba(0, 255, 136, 0.8);
-        }
+        #gameContainer { display: none; width: 100%; height: 100%; flex-direction: column; }
         
-        button:active {
-            transform: scale(0.95);
-        }
-        
-        /* GAME CONTAINER */
-        #gameContainer { 
-            display: none; 
-            width: 100%; 
-            height: 100%; 
-            flex-direction: column; 
-        }
-        
-        /* TOP HUD */
         #topHUD { 
-            background: rgba(0, 0, 0, 0.95);
-            border-bottom: 3px solid #00ff88;
-            padding: 15px 25px;
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            gap: 20px; 
-            flex-shrink: 0; 
-            height: 120px;
+            background: rgba(0, 0, 0, 0.95); border-bottom: 3px solid #00ff88;
+            padding: 15px 25px; display: flex; justify-content: space-between; 
+            align-items: center; gap: 20px; height: 120px;
         }
         
         #playerInfoBox { 
-            background: rgba(0, 255, 136, 0.1);
-            border: 2px solid #00ff88;
-            border-radius: 8px;
-            padding: 12px 20px;
+            background: rgba(0, 255, 136, 0.1); border: 2px solid #00ff88;
+            border-radius: 8px; padding: 12px 20px;
         }
+        #playerInfoBox h3 { color: #00ff88; margin-bottom: 10px; }
         
-        #playerInfoBox h3 { 
-            color: #00ff88; 
-            margin-bottom: 10px; 
-            font-size: 0.95em;
-        }
-        
-        #playerStats { 
-            display: flex; 
-            gap: 25px; 
-            align-items: center;
-        }
-        
-        .stat-group { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 5px;
-        }
-        
-        .stat-group .label { 
-            color: #00ffff; 
-            font-size: 0.8em;
-            font-weight: bold;
-        }
+        #playerStats { display: flex; gap: 25px; }
+        .stat-group { display: flex; flex-direction: column; gap: 5px; }
+        .stat-group .label { color: #00ffff; font-size: 0.8em; font-weight: bold; }
         
         .health-bar, .ammo-bar { 
-            width: 120px; 
-            height: 24px; 
-            background: rgba(0, 0, 0, 0.7);
-            border: 2px solid;
-            border-radius: 4px; 
-            overflow: hidden;
-            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+            width: 120px; height: 24px; background: rgba(0, 0, 0, 0.7);
+            border: 2px solid; border-radius: 4px; overflow: hidden;
         }
-        
         .health-bar { border-color: #ff3333; }
         .ammo-bar { border-color: #00ffff; }
+        .health-fill { height: 100%; background: linear-gradient(90deg, #ff3333, #ff6666); }
+        .ammo-fill { height: 100%; background: linear-gradient(90deg, #00ffff, #00ff88); }
         
-        .health-fill { 
-            height: 100%; 
-            background: linear-gradient(90deg, #ff3333, #ff6666);
-            transition: width 0.1s;
-        }
-        
-        .ammo-fill { 
-            height: 100%; 
-            background: linear-gradient(90deg, #00ffff, #00ff88);
-            transition: width 0.1s;
-        }
-        
-        #teamScores { 
-            display: flex; 
-            gap: 12px;
-            flex: 1;
-            justify-content: center;
-        }
-        
+        #teamScores { display: flex; gap: 12px; flex: 1; justify-content: center; }
         .team-score { 
-            padding: 10px 16px; 
-            border: 2px solid; 
-            border-radius: 6px;
-            background: rgba(0, 0, 0, 0.6);
-            font-weight: bold; 
-            min-width: 100px;
-            text-align: center;
-            font-size: 1.1em;
-            box-shadow: 0 0 10px;
-            transition: all 0.3s;
+            padding: 10px 16px; border: 2px solid; border-radius: 6px;
+            background: rgba(0, 0, 0, 0.6); font-weight: bold; min-width: 100px;
+            text-align: center; font-size: 1.1em; box-shadow: 0 0 10px;
         }
+        .team-blue { border-color: #0099ff; color: #0099ff; }
+        .team-red { border-color: #ff3333; color: #ff3333; }
+        .team-yellow { border-color: #ffff00; color: #ffff00; }
+        .team-green { border-color: #00ff88; color: #00ff88; }
         
-        .team-blue { border-color: #0099ff; color: #0099ff; box-shadow: 0 0 10px rgba(0, 153, 255, 0.3); }
-        .team-red { border-color: #ff3333; color: #ff3333; box-shadow: 0 0 10px rgba(255, 51, 51, 0.3); }
-        .team-yellow { border-color: #ffff00; color: #ffff00; box-shadow: 0 0 10px rgba(255, 255, 0, 0.3); }
-        .team-green { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
+        #gameArea { flex: 1; width: 100%; display: flex; position: relative; }
         
-        .team-score:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 20px currentColor;
+        #canvasContainer { flex: 1; position: relative; }
+        #gameCanvas { display: block; width: 100%; height: 100%; }
+        
+        #minimapContainer {
+            position: absolute; bottom: 20px; left: 20px; z-index: 10;
+            background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff88;
+            border-radius: 8px; padding: 8px;
         }
+        #minimap { border: 1px solid #00ff88; }
         
-        #gameArea { 
-            flex: 1; 
-            width: 100%; 
-            display: block; 
-            position: relative; 
-            overflow: hidden; 
-            background: #2a3a4a;
+        #statsPanel {
+            position: absolute; top: 20px; right: 20px; z-index: 10;
+            background: rgba(0, 0, 0, 0.9); border: 2px solid #00ff88;
+            border-radius: 8px; padding: 15px; max-height: 300px; overflow-y: auto;
+            max-width: 300px;
         }
+        #statsPanel h3 { color: #00ff88; margin-bottom: 10px; }
+        .stat-row { color: #00ffff; margin: 5px 0; font-size: 0.9em; display: flex; justify-content: space-between; }
         
-        #gameCanvas { 
-            display: block; 
-            width: 100%; 
-            height: 100%; 
+        #gameInfo {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff88;
+            padding: 15px 20px; border-radius: 8px; font-size: 0.9em; color: #00ffff;
         }
         
         .controls {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            gap: 10px;
-            z-index: 10;
+            position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 10;
         }
+        .controls button { width: auto; padding: 10px 20px; font-size: 0.9em; }
+        #leaveBtn { background: linear-gradient(135deg, #ff3333 0%, #ff6666 100%); color: #fff; }
         
-        .controls button {
-            width: auto;
-            padding: 10px 20px;
-            font-size: 0.9em;
+        #winScreen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); z-index: 1000;
+            justify-content: center; align-items: center;
         }
-        
-        #leaveBtn {
-            background: linear-gradient(135deg, #ff3333 0%, #ff6666 100%);
-            color: #fff;
+        .win-content {
+            text-align: center; background: rgba(0, 0, 0, 0.8); border: 3px solid #00ff88;
+            padding: 60px; border-radius: 20px; backdrop-filter: blur(10px);
         }
+        .win-content h1 { font-size: 4em; color: #00ff88; margin-bottom: 20px; text-shadow: 0 0 20px #00ff88; }
+        .win-content p { font-size: 1.5em; color: #00ffff; margin-bottom: 30px; }
         
-        #leaveBtn:hover {
-            box-shadow: 0 0 25px rgba(255, 51, 51, 0.8);
+        .spawn-shield-indicator {
+            position: absolute; width: 60px; height: 60px; border: 3px solid #00ff88;
+            border-radius: 50%; pointer-events: none;
+            animation: shieldPulse 1s infinite;
         }
-        
-        /* Game info overlay */
-        .game-info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #00ff88;
-            padding: 15px 20px;
-            border-radius: 8px;
-            font-size: 0.9em;
-            color: #00ffff;
-            z-index: 5;
-        }
-        
-        .game-info div {
-            margin: 5px 0;
+        @keyframes shieldPulse {
+            0%, 100% { box-shadow: 0 0 5px #00ff88; }
+            50% { box-shadow: 0 0 20px #00ff88; }
         }
     </style>
 </head>
@@ -298,7 +163,7 @@
                     <h2>ENTER THE ARENA</h2>
                     <div class="form-group">
                         <label>SOLDIER NAME</label>
-                        <input type="text" id="playerName" value="Player" placeholder="Enter your codename">
+                        <input type="text" id="playerName" value="Soldier" placeholder="Enter your codename">
                     </div>
                     <div class="form-group">
                         <label>TEAM COLOR</label>
@@ -329,23 +194,40 @@
                         </div>
                     </div>
                 </div>
-
-                <div id="teamScores">
-                    <div id="teamScoresContainer"></div>
-                </div>
+                <div id="teamScores"><div id="teamScoresContainer"></div></div>
             </div>
 
             <div id="gameArea">
-                <div class="game-info">
-                    <div>💥 Left Click to Fire</div>
-                    <div>🔄 Right Click to Reload</div>
-                    <div>⌨️ WASD to Move</div>
-                </div>
-                <canvas id="gameCanvas"></canvas>
-                <div class="controls">
-                    <button id="leaveBtn" onclick="leaveGame()">SURRENDER</button>
+                <div id="canvasContainer">
+                    <div id="gameInfo">
+                        <div>💥 LEFT CLICK to Fire</div>
+                        <div>🔄 RIGHT CLICK to Reload</div>
+                        <div>⌨️ WASD to Move</div>
+                    </div>
+                    <canvas id="gameCanvas"></canvas>
+                    
+                    <div id="minimapContainer">
+                        <canvas id="minimap" width="200" height="150"></canvas>
+                    </div>
+                    
+                    <div id="statsPanel">
+                        <h3>🏆 LEADERBOARD</h3>
+                        <div id="statsContent"></div>
+                    </div>
+                    
+                    <div class="controls">
+                        <button id="leaveBtn" onclick="leaveGame()">SURRENDER</button>
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="winScreen">
+        <div class="win-content">
+            <h1 id="winTitle">VICTORY!</h1>
+            <p id="winText">Team wins!</p>
+            <button onclick="leaveGame()" style="margin-top: 30px;">RETURN TO LOBBY</button>
         </div>
     </div>
 
@@ -362,44 +244,26 @@
         const teamNames = ['BLUE', 'RED', 'YELLOW', 'GREEN'];
 
         const canvas = document.getElementById('gameCanvas');
+        const minimap = document.getElementById('minimap');
         const ctx = canvas.getContext('2d');
+        const minimapCtx = minimap.getContext('2d');
         ctx.imageSmoothingEnabled = false;
+        minimapCtx.imageSmoothingEnabled = false;
 
         // Audio
         const shootSound = new Audio('/smg.mp3');
         shootSound.volume = 0.3;
-        shootSound.preload = 'auto';
-
         const hitSound = new Audio('/hit.mp3');
         hitSound.volume = 0.3;
-        hitSound.preload = 'auto';
-
         const collisionSound = new Audio('/hit.mp3');
         collisionSound.volume = 0.2;
-        collisionSound.preload = 'auto';
-
         const wallCollisionSound = new Audio('/hit.mp3');
         wallCollisionSound.volume = 0.15;
-        wallCollisionSound.preload = 'auto';
 
-        // Cookies
         function setCookie(name, value, days = 7) {
             const date = new Date();
             date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-            const expires = "expires=" + date.toUTCString();
-            document.cookie = name + "=" + value + ";" + expires + ";path=/";
-        }
-
-        function getCookie(name) {
-            const nameEQ = name + "=";
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                let cookie = cookies[i].trim();
-                if (cookie.indexOf(nameEQ) === 0) {
-                    return cookie.substring(nameEQ.length);
-                }
-            }
-            return null;
+            document.cookie = name + "=" + value + ";expires=" + date.toUTCString() + ";path=/";
         }
 
         function deleteCookie(name) {
@@ -414,55 +278,38 @@
 
             socket = io();
 
-            socket.on('connect', () => {
-                console.log('🎮 Connected to battle server');
-            });
+            socket.on('connect', () => console.log('🎮 Connected'));
 
             socket.on('gameStateUpdate', (state) => {
-                // Detect deaths for explosions
                 if (gameState && gameState.players) {
                     gameState.players.forEach(oldPlayer => {
                         const newPlayer = state.players.find(p => p.id === oldPlayer.id);
                         if (newPlayer && oldPlayer.hp > 0 && newPlayer.hp <= 0) {
-                            explosions.push({
-                                x: newPlayer.x,
-                                y: newPlayer.y,
-                                age: 0,
-                                maxAge: 20
-                            });
+                            explosions.push({ x: newPlayer.x, y: newPlayer.y, age: 0, maxAge: 20 });
                         }
                     });
                 }
                 gameState = state;
+                
+                // Check for winner
+                if (state.winner !== null && !document.getElementById('winScreen').style.display?.includes('flex')) {
+                    showWinScreen(state.winner);
+                }
+                
                 updateUI();
             });
 
             socket.on('shotFired', () => {
-                try {
-                    shootSound.currentTime = 0;
-                    shootSound.play().catch(() => {});
-                } catch (e) {}
+                try { shootSound.currentTime = 0; shootSound.play().catch(() => {}); } catch (e) {}
             });
-
             socket.on('hitEvent', () => {
-                try {
-                    hitSound.currentTime = 0;
-                    hitSound.play().catch(() => {});
-                } catch (e) {}
+                try { hitSound.currentTime = 0; hitSound.play().catch(() => {}); } catch (e) {}
             });
-
             socket.on('collisionEvent', () => {
-                try {
-                    collisionSound.currentTime = 0;
-                    collisionSound.play().catch(() => {});
-                } catch (e) {}
+                try { collisionSound.currentTime = 0; collisionSound.play().catch(() => {}); } catch (e) {}
             });
-
             socket.on('wallCollisionEvent', () => {
-                try {
-                    wallCollisionSound.currentTime = 0;
-                    wallCollisionSound.play().catch(() => {});
-                } catch (e) {}
+                try { wallCollisionSound.currentTime = 0; wallCollisionSound.play().catch(() => {}); } catch (e) {}
             });
         }
 
@@ -473,20 +320,15 @@
 
             socket.emit('getGames', games => {
                 let gameId = null;
-                let foundGame = false;
-
                 for (let game of games) {
-                    if (game.playerCount < 8 && (game.state === 'lobby' || game.state === 'playing')) {
+                    if (Object.keys(games).length < 12 && (game.state === 'lobby' || game.state === 'playing')) {
                         gameId = game.id;
-                        foundGame = true;
                         break;
                     }
                 }
 
                 if (!gameId) {
-                    socket.emit('createGame', 0, id => {
-                        joinGameImpl(id, name, teamIndex);
-                    });
+                    socket.emit('createGame', 0, id => joinGameImpl(id, name, teamIndex));
                 } else {
                     joinGameImpl(gameId, name, teamIndex);
                 }
@@ -494,24 +336,17 @@
         }
 
         function joinGameImpl(gameId, name, teamIndex) {
-            socket.emit('joinGame', gameId, {
-                name: name,
-                teamIndex: teamIndex,
-                tankType: 'Classic'
-            }, result => {
+            socket.emit('joinGame', gameId, { name, teamIndex, tankType: 'Classic' }, result => {
                 if (result.success) {
                     currentGameId = gameId;
                     currentPlayerId = result.playerId;
                     isPlaying = true;
-
                     socket.emit('startGame', gameId, () => {});
-
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
-
                     setTimeout(() => {
-                        canvas.width = document.getElementById('gameArea').clientWidth;
-                        canvas.height = document.getElementById('gameArea').clientHeight;
+                        canvas.width = document.getElementById('canvasContainer').clientWidth;
+                        canvas.height = document.getElementById('canvasContainer').clientHeight;
                     }, 50);
                 } else {
                     alert('❌ DEPLOYMENT FAILED: ' + (result.error || 'Unknown error'));
@@ -521,14 +356,7 @@
 
         function leaveGame() {
             isPlaying = false;
-            currentGameId = null;
-            currentPlayerId = null;
-
-            deleteCookie('gameId');
-            deleteCookie('playerId');
-            deleteCookie('playerName');
-            deleteCookie('teamIndex');
-
+            document.getElementById('winScreen').style.display = 'none';
             document.getElementById('lobbyScreen').style.display = 'flex';
             document.getElementById('gameContainer').style.display = 'none';
             if (socket) {
@@ -537,17 +365,14 @@
             }
         }
 
-        function drawTank(ctx, x, y, angle, colorIndex) {
+        function drawTank(ctx, x, y, angle, colorIndex, hasShield) {
             const color = teamColors[colorIndex];
-            
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
             
-            // Tank body with glow
             ctx.shadowColor = color;
             ctx.shadowBlur = 10;
-            
             ctx.fillStyle = color;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
@@ -555,28 +380,75 @@
             ctx.strokeRect(-10, -14, 20, 28);
             
             ctx.shadowBlur = 0;
-            
-            // Turret
             ctx.beginPath();
             ctx.arc(0, -2, 6, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
             
-            // Barrel
             ctx.fillStyle = '#888888';
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1;
             ctx.fillRect(-2, -14, 4, 12);
             ctx.strokeRect(-2, -14, 4, 12);
             
-            // Muzzle
             ctx.fillStyle = '#333333';
             ctx.beginPath();
             ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
             
+            if (hasShield) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                ctx.arc(0, 0, 25, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+            
             ctx.restore();
+        }
+
+        function renderMinimap() {
+            if (!gameState) return;
+            const mapWidth = 1400;
+            const mapHeight = 600;
+            const minimapWidth = minimap.width;
+            const minimapHeight = minimap.height;
+            const scaleX = minimapWidth / mapWidth;
+            const scaleY = minimapHeight / mapHeight;
+
+            minimapCtx.fillStyle = '#1a2a3a';
+            minimapCtx.fillRect(0, 0, minimapWidth, minimapHeight);
+            
+            // Draw obstacles
+            minimapCtx.fillStyle = '#555555';
+            if (gameState.obstacles) {
+                gameState.obstacles.forEach(obs => {
+                    minimapCtx.fillRect(obs.x * scaleX, obs.y * scaleY, obs.w * scaleX, obs.h * scaleY);
+                });
+            }
+            
+            // Draw power-ups
+            if (gameState.powerUps) {
+                gameState.powerUps.forEach(pu => {
+                    if (pu.active) {
+                        minimapCtx.fillStyle = pu.type === 'health' ? '#00ff00' : pu.type === 'ammo' ? '#ffff00' : '#ff00ff';
+                        minimapCtx.beginPath();
+                        minimapCtx.arc(pu.x * scaleX, pu.y * scaleY, 3, 0, Math.PI * 2);
+                        minimapCtx.fill();
+                    }
+                });
+            }
+            
+            // Draw players
+            if (gameState.players) {
+                gameState.players.forEach(player => {
+                    if (player.alive) {
+                        minimapCtx.fillStyle = teamColors[player.teamIndex];
+                        minimapCtx.fillRect(player.x * scaleX - 2, player.y * scaleY - 2, 4, 4);
+                    }
+                });
+            }
         }
 
         function render() {
@@ -590,27 +462,22 @@
 
             const mapWidth = 1400;
             const mapHeight = 600;
-
-            ctx.fillStyle = '#2a3a4a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            if (gameState.players.length === 0) return;
-
             const scaleX = canvas.width / mapWidth;
             const scaleY = canvas.height / mapHeight;
             const scale = Math.min(scaleX, scaleY);
             const offsetX = (canvas.width - mapWidth * scale) / 2;
             const offsetY = (canvas.height - mapHeight * scale) / 2;
 
+            ctx.fillStyle = '#2a3a4a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
             ctx.save();
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            // Draw map background
             ctx.fillStyle = '#1a2a3a';
             ctx.fillRect(0, 0, mapWidth, mapHeight);
             
-            // Draw grid for atmosphere
             ctx.strokeStyle = 'rgba(0, 255, 136, 0.05)';
             ctx.lineWidth = 1;
             for (let x = 0; x < mapWidth; x += 50) {
@@ -626,25 +493,45 @@
                 ctx.stroke();
             }
 
-            // Draw border
             ctx.fillStyle = '#444444';
             ctx.fillRect(0, 0, mapWidth, mapHeight);
             ctx.fillStyle = '#1a2a3a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
-            // Draw obstacles with glow
+            // Draw obstacles
             ctx.fillStyle = '#555555';
             ctx.shadowColor = '#555555';
             ctx.shadowBlur = 5;
-            if (gameState.obstacles && Array.isArray(gameState.obstacles)) {
+            if (gameState.obstacles) {
                 gameState.obstacles.forEach(obstacle => {
                     ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
                 });
             }
             ctx.shadowBlur = 0;
 
+            // Draw power-ups
+            if (gameState.powerUps) {
+                gameState.powerUps.forEach(pu => {
+                    if (pu.active) {
+                        const color = pu.type === 'health' ? '#00ff00' : pu.type === 'ammo' ? '#ffff00' : '#ff00ff';
+                        const grad = ctx.createRadialGradient(pu.x, pu.y, 0, pu.x, pu.y, 20);
+                        grad.addColorStop(0, color);
+                        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                        ctx.fillStyle = grad;
+                        ctx.beginPath();
+                        ctx.arc(pu.x, pu.y, 20, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.arc(pu.x, pu.y, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            }
+
             // Draw projectiles
-            if (gameState.projectiles && gameState.projectiles.length > 0) {
+            if (gameState.projectiles) {
                 gameState.projectiles.forEach(p => {
                     const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 10);
                     grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
@@ -654,12 +541,10 @@
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
                     ctx.fill();
-
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
                     ctx.fill();
-
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
@@ -667,33 +552,27 @@
                 });
             }
 
-            // Draw explosions with enhanced effect
+            // Draw explosions
             explosions = explosions.filter(exp => {
                 if (exp.age >= exp.maxAge) return false;
-                
                 const radius = (exp.age / exp.maxAge) * 100;
                 const alpha = 1 - (exp.age / exp.maxAge);
-                
                 ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 0.9})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius, 0, Math.PI * 2);
                 ctx.fill();
-                
                 ctx.fillStyle = `rgba(255, 165, 0, ${alpha * 0.8})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius * 0.7, 0, Math.PI * 2);
                 ctx.fill();
-                
                 ctx.fillStyle = `rgba(255, 255, 0, ${alpha})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius * 0.4, 0, Math.PI * 2);
                 ctx.fill();
-                
                 ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius * 0.2, 0, Math.PI * 2);
                 ctx.fill();
-                
                 exp.age++;
                 return true;
             });
@@ -702,12 +581,13 @@
             if (gameState.players) {
                 gameState.players.forEach(player => {
                     if (player.alive) {
-                        drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
+                        drawTank(ctx, player.x, player.y, player.angle, player.teamIndex, player.hasSpawnShield);
                     }
                 });
             }
 
             ctx.restore();
+            renderMinimap();
         }
 
         function gameLoop() {
@@ -747,20 +627,30 @@
                 document.getElementById('ammoFill').style.width = (player.ammo / 10 * 100) + '%';
             }
 
-            // Dynamic team scores
             const teamsInGame = new Set();
-            gameState.players.forEach(p => {
-                teamsInGame.add(p.teamIndex);
-            });
+            gameState.players.forEach(p => teamsInGame.add(p.teamIndex));
 
             const teamClasses = ['team-blue', 'team-red', 'team-yellow', 'team-green'];
-            
             let scoresHTML = '';
             Array.from(teamsInGame).sort().forEach(teamIndex => {
                 scoresHTML += `<div class="team-score ${teamClasses[teamIndex]}">${teamNames[teamIndex]}: <strong>${gameState.scores[teamIndex]}</strong></div>`;
             });
-            
             document.getElementById('teamScoresContainer').innerHTML = scoresHTML;
+
+            // Update leaderboard
+            const sorted = [...gameState.players].sort((a, b) => b.kills - a.kills);
+            let statsHTML = '';
+            sorted.slice(0, 8).forEach(p => {
+                const color = teamColors[p.teamIndex];
+                statsHTML += `<div class="stat-row"><span style="color: ${color}">▮ ${p.name}</span><span>${p.kills}K ${p.deaths}D</span></div>`;
+            });
+            document.getElementById('statsContent').innerHTML = statsHTML;
+        }
+
+        function showWinScreen(winnerTeam) {
+            document.getElementById('winScreen').style.display = 'flex';
+            document.getElementById('winTitle').textContent = `${teamNames[winnerTeam].toUpperCase()} WINS!`;
+            document.getElementById('winText').textContent = `${teamNames[winnerTeam]} Team reached 10 kills!`;
         }
 
         initSocket();
