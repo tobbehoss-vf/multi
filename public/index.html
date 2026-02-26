@@ -133,6 +133,15 @@
         hitSound.volume = 0.3;
         hitSound.preload = 'auto';
 
+        // Pre-load collision sounds
+        const collisionSound = new Audio('/hit.mp3'); // Använd samma ljud för tank-collision
+        collisionSound.volume = 0.2;
+        collisionSound.preload = 'auto';
+
+        const wallCollisionSound = new Audio('/hit.mp3'); // Använd samma ljud för vägg
+        wallCollisionSound.volume = 0.15;
+        wallCollisionSound.preload = 'auto';
+
         // Cookie functions
         function setCookie(name, value, days = 7) {
             const date = new Date();
@@ -203,6 +212,24 @@
                     hitSound.play().catch(() => {});
                 } catch (e) {
                     console.log('Hit sound error:', e);
+                }
+            });
+
+            socket.on('collisionEvent', () => {
+                try {
+                    collisionSound.currentTime = 0;
+                    collisionSound.play().catch(() => {});
+                } catch (e) {
+                    console.log('Collision sound error:', e);
+                }
+            });
+
+            socket.on('wallCollisionEvent', () => {
+                try {
+                    wallCollisionSound.currentTime = 0;
+                    wallCollisionSound.play().catch(() => {});
+                } catch (e) {
+                    console.log('Wall collision sound error:', e);
                 }
             });
 
