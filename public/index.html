@@ -375,13 +375,47 @@
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
-            // Draw obstacles
+            // Draw obstacles - labyrint with thinner walls
             ctx.fillStyle = '#555555';
-            ctx.fillRect(300, 150, 60, 300);
-            ctx.fillRect(1040, 150, 60, 300);
-            ctx.fillRect(550, 200, 300, 50);
-            ctx.fillRect(550, 350, 300, 50);
-            ctx.fillRect(650, 250, 100, 100);
+            // Vertical walls
+            ctx.fillRect(220, 100, 20, 180);
+            ctx.fillRect(420, 100, 20, 180);
+            ctx.fillRect(620, 100, 20, 180);
+            ctx.fillRect(820, 100, 20, 180);
+            ctx.fillRect(1020, 100, 20, 180);
+            ctx.fillRect(1220, 100, 20, 180);
+            
+            // Horizontal walls top
+            ctx.fillRect(160, 170, 120, 20);
+            ctx.fillRect(460, 170, 120, 20);
+            ctx.fillRect(760, 170, 120, 20);
+            ctx.fillRect(1060, 170, 120, 20);
+            
+            // Middle vertical walls
+            ctx.fillRect(320, 310, 20, 180);
+            ctx.fillRect(520, 310, 20, 180);
+            ctx.fillRect(720, 310, 20, 180);
+            ctx.fillRect(920, 310, 20, 180);
+            ctx.fillRect(1120, 310, 20, 180);
+            
+            // Horizontal walls middle
+            ctx.fillRect(160, 370, 120, 20);
+            ctx.fillRect(460, 400, 120, 20);
+            ctx.fillRect(760, 370, 120, 20);
+            ctx.fillRect(1060, 400, 120, 20);
+            
+            // Bottom vertical walls
+            ctx.fillRect(220, 430, 20, 140);
+            ctx.fillRect(420, 430, 20, 140);
+            ctx.fillRect(620, 430, 20, 140);
+            ctx.fillRect(820, 430, 20, 140);
+            ctx.fillRect(1020, 430, 20, 140);
+            ctx.fillRect(1220, 430, 20, 140);
+            
+            // Center maze
+            ctx.fillRect(670, 270, 20, 80);
+            ctx.fillRect(740, 270, 20, 80);
+            ctx.fillRect(705, 300, 50, 20);
 
             // Draw spawn zones (semi-transparent)
             ctx.fillStyle = 'rgba(0, 153, 255, 0.1)';
