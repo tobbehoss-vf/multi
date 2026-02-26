@@ -133,6 +133,11 @@
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
         const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
 
+        // Pre-load shoot sound
+        const shootSound = new Audio('/smg.mp3');
+        shootSound.volume = 0.3;
+        shootSound.preload = 'auto';
+
         // Cookie-funktioner
         function setCookie(name, value, days = 7) {
             const date = new Date();
@@ -207,9 +212,12 @@
             });
 
             socket.on('shotFired', () => {
-                const shootSound = new Audio('/smg.mp3');
-                shootSound.volume = 0.3;
-                shootSound.play().catch(() => {});
+                try {
+                    shootSound.currentTime = 0;
+                    shootSound.play().catch(() => {});
+                } catch (e) {
+                    console.log('Sound play error:', e);
+                }
             });
         }
 
