@@ -171,7 +171,7 @@
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
 
-        // Draw tank directly with Canvas - no image loading needed
+        // Draw tank directly with Canvas - crisp rendering
         function drawTank(ctx, x, y, angle, colorIndex) {
             const color = teamColors[colorIndex];
             
@@ -179,32 +179,27 @@
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
             
+            // Disable smoothing for crisp rendering
+            ctx.imageSmoothingEnabled = false;
+            
             // Tank body - rounded rectangle
             const bodyWidth = 20;
             const bodyHeight = 28;
-            const radius = 4;
+            const radius = 3;
             
-            // Draw rounded rectangle
+            // Draw filled rounded rectangle
             ctx.fillStyle = color;
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 1;
             
-            ctx.beginPath();
-            ctx.moveTo(-bodyWidth/2 + radius, -bodyHeight/2);
-            ctx.lineTo(bodyWidth/2 - radius, -bodyHeight/2);
-            ctx.quadraticCurveTo(bodyWidth/2, -bodyHeight/2, bodyWidth/2, -bodyHeight/2 + radius);
-            ctx.lineTo(bodyWidth/2, bodyHeight/2 - radius);
-            ctx.quadraticCurveTo(bodyWidth/2, bodyHeight/2, bodyWidth/2 - radius, bodyHeight/2);
-            ctx.lineTo(-bodyWidth/2 + radius, bodyHeight/2);
-            ctx.quadraticCurveTo(-bodyWidth/2, bodyHeight/2, -bodyWidth/2, bodyHeight/2 - radius);
-            ctx.lineTo(-bodyWidth/2, -bodyHeight/2 + radius);
-            ctx.quadraticCurveTo(-bodyWidth/2, -bodyHeight/2, -bodyWidth/2 + radius, -bodyHeight/2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
+            // Simplified: use fillRect instead of complex path for crispness
+            ctx.fillRect(-bodyWidth/2, -bodyHeight/2, bodyWidth, bodyHeight);
+            ctx.strokeRect(-bodyWidth/2, -bodyHeight/2, bodyWidth, bodyHeight);
             
             // Turret - circle
             ctx.fillStyle = color;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.arc(0, -2, 6, 0, Math.PI * 2);
             ctx.fill();
@@ -213,16 +208,20 @@
             // Barrel - rectangle pointing up
             ctx.fillStyle = '#666666';
             ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
             ctx.fillRect(-2, -14, 4, 12);
             ctx.strokeRect(-2, -14, 4, 12);
             
             // Muzzle - small circle
             ctx.fillStyle = '#333333';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
             
+            ctx.imageSmoothingEnabled = true;
             ctx.restore();
         }
 
@@ -400,17 +399,6 @@
             // Draw players with names, health and ammo
             gameState.players.forEach(player => {
                 drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
-
-                // Draw name above tank
-                ctx.fillStyle = teamColors[player.teamIndex];
-                ctx.font = 'bold 11px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - 50);
-
-                // Draw health and ammo below
-                ctx.font = '9px Courier New';
-                ctx.fillStyle = '#00ff88';
-                ctx.fillText(`HP:${player.hp} AMO:${player.ammo}`, player.x, player.y + 45);
             });
 
             ctx.restore();
