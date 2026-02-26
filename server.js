@@ -282,8 +282,6 @@ class Game {
               shooter.kills++;
               this.scores[proj.teamIndex] += 1; // 1 poäng för kill
             }
-          } else {
-            this.scores[proj.teamIndex] += 1;
           }
 
           hit = true;
