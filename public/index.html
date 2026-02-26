@@ -409,10 +409,12 @@
                 return true;
             });
 
-            // Draw players
+            // Draw players (only alive ones)
             if (gameState.players) {
                 gameState.players.forEach(player => {
-                    drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
+                    if (player.alive) {
+                        drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
+                    }
                 });
             }
 
