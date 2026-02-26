@@ -129,6 +129,7 @@
         let currentGameId = null;
         let currentPlayerId = null;
         let isPlaying = false;
+        let explosions = []; // Track explosions locally
 
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
         const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
@@ -207,6 +208,21 @@
             });
 
             socket.on('gameStateUpdate', (state) => {
+                // Hitta döda spelare och skapa explosioner
+                if (gameState && gameState.players) {
+                    gameState.players.forEach(oldPlayer => {
+                        const newPlayer = state.players.find(p => p.id === oldPlayer.id);
+                        if (newPlayer && oldPlayer.hp > 0 && newPlayer.hp <= 0) {
+                            // Spelare dog just nu - skapa explosion
+                            explosions.push({
+                                x: newPlayer.x,
+                                y: newPlayer.y,
+                                age: 0,
+                                maxAge: 20
+                            });
+                        }
+                    });
+                }
                 gameState = state;
                 updateUI();
             });
@@ -367,16 +383,29 @@
             ctx.fillRect(550, 350, 300, 50);
             ctx.fillRect(650, 250, 100, 100);
 
+            // Draw spawn zones (semi-transparent)
+            ctx.fillStyle = 'rgba(0, 153, 255, 0.1)';
+            ctx.fillRect(50, 70, 60, 450); // Blå - vänster
+            
+            ctx.fillStyle = 'rgba(255, 51, 51, 0.1)';
+            ctx.fillRect(1290, 70, 60, 450); // Röd - höger
+            
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.1)';
+            ctx.fillRect(200, 50, 1000, 60); // Gul - topp
+            
+            ctx.fillStyle = 'rgba(0, 255, 136, 0.1)';
+            ctx.fillRect(200, 540, 1000, 60); // Grön - botten
+
             // Draw projectiles
             if (gameState.projectiles && gameState.projectiles.length > 0) {
                 gameState.projectiles.forEach(p => {
-                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 10);
                     grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
                     grad.addColorStop(0.6, 'rgba(255, 200, 0, 0.5)');
                     grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
                     ctx.fill();
 
                     ctx.fillStyle = '#ffff00';
@@ -390,6 +419,29 @@
                     ctx.fill();
                 });
             }
+
+            // Draw explosions
+            explosions = explosions.filter(exp => {
+                if (exp.age >= exp.maxAge) return false;
+                
+                const radius = (exp.age / exp.maxAge) * 60;
+                const alpha = 1 - (exp.age / exp.maxAge);
+                
+                // Outer ring
+                ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner glow
+                ctx.fillStyle = `rgba(255, 200, 0, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, radius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                exp.age++;
+                return true;
+            });
 
             // Draw players
             if (gameState.players) {
