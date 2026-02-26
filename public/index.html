@@ -171,6 +171,15 @@
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
 
+        // Auto-size canvas to fill container
+        function resizeCanvas() {
+            const container = document.getElementById('gameArea');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
         // Draw tank directly with Canvas - crisp rendering
         function drawTank(ctx, x, y, angle, colorIndex) {
             const color = teamColors[colorIndex];
