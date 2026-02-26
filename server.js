@@ -13,7 +13,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
-// Classes
 class Player {
   constructor(id, name, teamIndex, tankType) {
     this.id = id;
@@ -28,6 +27,7 @@ class Player {
     this.lives = 5;
     this.kills = 0;
     this.deaths = 0;
+    this.killStreak = 0; // NEW
     this.maxAmmo = 10;
     this.ammo = 10;
     this.alive = true;
@@ -35,14 +35,15 @@ class Player {
     this.reloadStartTime = 0;
     this.reloadTime = 1000;
     this.deathTime = null;
-    
-    // NEW: Spawn shield & momentum
-    this.spawnShield = 3; // 3 seconds of invulnerability
+    this.spawnShield = 3;
     this.spawnTime = Date.now();
     this.velocityX = 0;
     this.velocityY = 0;
     this.acceleration = 0.8;
     this.friction = 0.85;
+    this.speedBoost = 1;
+    this.lastShotTime = 0; // NEW: Cooldown tracking
+    this.shotCooldown = 150; // 150ms between shots
   }
 }
 
@@ -61,14 +62,13 @@ class Projectile {
   }
 }
 
-// NEW: Power-up class
 class PowerUp {
   constructor(x, y, type) {
     this.x = x;
     this.y = y;
-    this.type = type; // 'health', 'ammo', 'speed'
+    this.type = type;
     this.radius = 15;
-    this.respawnTime = 10000; // 10 seconds
+    this.respawnTime = 10000;
     this.pickedUpTime = null;
   }
 
@@ -82,6 +82,19 @@ class PowerUp {
   }
 }
 
+// NEW: Particle system för effekter
+class Particle {
+  constructor(x, y, vx, vy, color, life) {
+    this.x = x;
+    this.y = y;
+    this.vx = vx;
+    this.vy = vy;
+    this.color = color;
+    this.life = life;
+    this.age = 0;
+  }
+}
+
 class Game {
   constructor(gameId, mapId) {
     this.gameId = gameId;
@@ -89,6 +102,7 @@ class Game {
     this.players = {};
     this.projectiles = [];
     this.powerUps = [];
+    this.particles = []; // NEW
     this.state = 'lobby';
     this.teamCounts = [0, 0, 0, 0];
     this.scores = [0, 0, 0, 0];
@@ -97,11 +111,10 @@ class Game {
     this.hitThisFrame = false;
     this.collisionThisFrame = false;
     this.wallCollisionThisFrame = false;
-    
-    // NEW: Win condition
-    this.winTarget = 10; // First to 10 kills
+    this.winTarget = 10;
     this.gameEndTime = null;
     this.winner = null;
+    this.difficulty = 1; // NEW: Scales with time
     
     this.generateRandomObstacles();
     this.generatePowerUps();
@@ -110,51 +123,27 @@ class Game {
   generateRandomObstacles() {
     this.obstacles = [];
     
-    for (let x = 150; x < 1400; x += Math.random() * 150 + 100) {
-      const startY = Math.random() * 200 + 50;
-      const height = Math.random() * 250 + 100;
-      if (startY + height < 550) {
-        this.obstacles.push({
-          x: x,
-          y: startY,
-          w: 10,
-          h: height
-        });
-      }
-    }
+    // Mer väggar baserat på svårighet
+    const wallCount = 8 + Math.floor(Math.random() * 5);
     
-    for (let y = 150; y < 550; y += Math.random() * 150 + 100) {
-      const startX = Math.random() * 400 + 100;
-      const width = Math.random() * 250 + 80;
-      if (startX + width < 1350) {
-        this.obstacles.push({
-          x: startX,
-          y: y,
-          w: width,
-          h: 10
-        });
+    for (let i = 0; i < wallCount; i++) {
+      const x = Math.random() * (1400 - 100) + 50;
+      const y = Math.random() * (600 - 100) + 50;
+      const width = Math.random() * 300 + 80;
+      const height = Math.random() * 200 + 50;
+      
+      if (x + width < 1350 && y + height < 550) {
+        this.obstacles.push({ x, y, w: width, h: height });
       }
-    }
-    
-    for (let i = 0; i < 3; i++) {
-      const x = Math.random() * 1000 + 200;
-      const y = Math.random() * 400 + 100;
-      const size = Math.random() * 60 + 30;
-      this.obstacles.push({
-        x: x,
-        y: y,
-        w: size,
-        h: size
-      });
     }
   }
 
-  // NEW: Generate power-ups
   generatePowerUps() {
     this.powerUps = [];
-    const types = ['health', 'ammo', 'speed'];
+    const types = ['health', 'ammo', 'speed', 'damage', 'shield']; // NEW: damage & shield
+    const count = 8; // Mer power-ups
     
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < count; i++) {
       let x, y, valid = false;
       for (let attempts = 0; attempts < 20; attempts++) {
         x = Math.random() * 1300 + 50;
@@ -165,9 +154,13 @@ class Game {
         }
       }
       if (valid) {
-        this.powerUps.push(new PowerUp(x, y, types[i % 3]));
+        this.powerUps.push(new PowerUp(x, y, types[i % types.length]));
       }
     }
+  }
+
+  addParticle(x, y, vx, vy, color, life) { // NEW
+    this.particles.push(new Particle(x, y, vx, vy, color, life));
   }
 
   addPlayer(player) {
@@ -232,6 +225,13 @@ class Game {
       if (projX >= obstacle.x && projX <= obstacle.x + obstacle.w &&
           projY >= obstacle.y && projY <= obstacle.y + obstacle.h) {
         
+        // Particles när vägg skadas
+        for (let i = 0; i < 5; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = Math.random() * 3 + 2;
+          this.addParticle(projX, projY, Math.cos(angle) * speed, Math.sin(angle) * speed, '#888888', 30);
+        }
+        
         if (obstacle.w > obstacle.h) {
           obstacle.h -= 5;
           if (obstacle.h <= 0) {
@@ -295,7 +295,20 @@ class Game {
       return;
     }
 
-    // Update power-ups
+    // Update difficulty baserat på tid
+    const elapsedSeconds = (Date.now() - this.gameStartTime) / 1000;
+    this.difficulty = Math.min(2, 1 + elapsedSeconds / 300); // Max 2x efter 5 minuter
+
+    // Update particles
+    this.particles = this.particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.1; // gravity
+      p.age++;
+      return p.age < p.life;
+    });
+
+    // Power-up pickup
     this.powerUps.forEach(powerUp => {
       if (!powerUp.isActive()) return;
       
@@ -308,6 +321,13 @@ class Game {
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 30) {
+          // Particle burst
+          for (let i = 0; i < 10; i++) {
+            const angle = (i / 10) * Math.PI * 2;
+            const speed = 5;
+            this.addParticle(powerUp.x, powerUp.y, Math.cos(angle) * speed, Math.sin(angle) * speed, '#ffff00', 20);
+          }
+          
           if (powerUp.type === 'health') {
             player.hp = Math.min(player.hp + 40, player.maxHp);
           } else if (powerUp.type === 'ammo') {
@@ -315,6 +335,12 @@ class Game {
           } else if (powerUp.type === 'speed') {
             player.speedBoost = 1.5;
             setTimeout(() => { player.speedBoost = 1; }, 5000);
+          } else if (powerUp.type === 'damage') { // NEW
+            player.damageBuff = 1.5;
+            setTimeout(() => { player.damageBuff = 1; }, 5000);
+          } else if (powerUp.type === 'shield') { // NEW
+            player.hp = Math.min(player.hp + 60, player.maxHp);
+            player.shieldActive = true;
           }
           powerUp.pickedUpTime = Date.now();
         }
@@ -339,6 +365,13 @@ class Game {
 
       if (this.projectileHitObstacle(proj.x, proj.y, proj.vx, proj.vy, prevX, prevY)) {
         this.damageWall(proj.x, proj.y);
+        
+        // Particle burst
+        for (let i = 0; i < 5; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = Math.random() * 3 + 2;
+          this.addParticle(proj.x, proj.y, Math.cos(angle) * speed, Math.sin(angle) * speed, '#ffaa00', 20);
+        }
         continue;
       }
 
@@ -349,7 +382,6 @@ class Game {
         
         if (target.teamIndex === proj.teamIndex) continue;
         
-        // NEW: Skip if target has spawn shield
         if (Date.now() - target.spawnTime < target.spawnShield * 1000) continue;
 
         const dx = target.x - proj.x;
@@ -357,20 +389,39 @@ class Game {
         const distSq = dx * dx + dy * dy;
 
         if (distSq < 900) {
-          target.hp -= proj.damage;
+          const shooter = this.players[proj.playerId];
+          let damage = proj.damage;
+          
+          if (shooter && shooter.damageBuff) {
+            damage *= shooter.damageBuff;
+          }
+          
+          target.hp -= damage;
           this.hitThisFrame = true;
+          
+          // Damage particles
+          for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 4 + 2;
+            this.addParticle(target.x, target.y, Math.cos(angle) * speed, Math.sin(angle) * speed, '#ff3333', 15);
+          }
           
           if (target.hp <= 0) {
             target.hp = 0;
             target.alive = false;
             target.deaths++;
+            target.killStreak = 0; // Reset streak when killed
 
-            const shooter = this.players[proj.playerId];
             if (shooter) {
               shooter.kills++;
+              shooter.killStreak++;
               this.scores[proj.teamIndex] += 1;
               
-              // Check win condition
+              // Bonus points för killstreak
+              if (shooter.killStreak >= 3) {
+                this.scores[proj.teamIndex] += Math.floor(shooter.killStreak / 3);
+              }
+              
               if (shooter.kills >= this.winTarget && !this.winner) {
                 this.winner = proj.teamIndex;
                 this.gameEndTime = Date.now();
@@ -409,6 +460,14 @@ class Game {
             player.deathTime = null;
             player.spawnTime = Date.now();
             player.spawnShield = 3;
+            player.killStreak = 0;
+            
+            // Spawn particles
+            for (let i = 0; i < 12; i++) {
+              const angle = (i / 12) * Math.PI * 2;
+              const speed = 4;
+              this.addParticle(player.x, player.y, Math.cos(angle) * speed, Math.sin(angle) * speed, '#00ff88', 25);
+            }
           }
         }
       }
@@ -428,19 +487,28 @@ class Game {
         maxHp: p.maxHp,
         lives: p.lives,
         kills: p.kills,
+        killStreak: p.killStreak,
         deaths: p.deaths,
         ammo: p.ammo,
         maxAmmo: p.maxAmmo,
         alive: p.alive,
         teamIndex: p.teamIndex,
         tankType: p.tankType,
-        hasSpawnShield: Date.now() - p.spawnTime < p.spawnShield * 1000
+        hasSpawnShield: Date.now() - p.spawnTime < p.spawnShield * 1000,
+        shieldActive: p.shieldActive
       })),
       projectiles: this.projectiles.map(p => ({
         x: p.x,
         y: p.y,
         vx: p.vx,
         vy: p.vy
+      })),
+      particles: this.particles.map(p => ({
+        x: p.x,
+        y: p.y,
+        color: p.color,
+        age: p.age,
+        life: p.life
       })),
       scores: this.scores,
       mapIndex: this.mapIndex,
@@ -452,7 +520,8 @@ class Game {
         active: pu.isActive()
       })),
       winner: this.winner,
-      gameEndTime: this.gameEndTime
+      gameEndTime: this.gameEndTime,
+      difficulty: this.difficulty
     };
   }
 }
@@ -645,6 +714,11 @@ io.on('connection', (socket) => {
     if (pGameId !== gameId) return;
     if (!player.alive || player.isReloading || player.ammo <= 0) return;
 
+    // NEW: Cooldown check
+    const now = Date.now();
+    if (now - player.lastShotTime < player.shotCooldown) return;
+    player.lastShotTime = now;
+
     const game = games[gameId];
     if (!game) {
       return;
@@ -704,7 +778,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Cleanup inactive players
 setInterval(() => {
   const now = Date.now();
   for (let playerId in players) {
@@ -725,7 +798,6 @@ setInterval(() => {
   }
 }, 5000);
 
-// Game loop
 let loopCount = 0;
 setInterval(() => {
   loopCount++;
