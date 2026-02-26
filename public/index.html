@@ -410,7 +410,7 @@
                 if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
                 if (keys['d']) socket.emit('movePlayer', 'right', currentGameId);
             }
-        }, 30);
+        }, 50); // Reducerad från 30ms
 
         canvas.addEventListener('click', () => {
             if (isPlaying && socket) {
