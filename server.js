@@ -68,65 +68,67 @@ class Game {
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
     
-    // Define obstacles - improved labyrint design
-    this.obstacles = [
-      // Outer frame (kanter)
-      // Inte för nära eftersom spawn-zoner är på utsidan
-      
-      // Top section - simple pattern
-      { x: 200, y: 120, w: 10, h: 140 },
-      { x: 350, y: 120, w: 10, h: 140 },
-      { x: 500, y: 120, w: 10, h: 140 },
-      { x: 650, y: 120, w: 10, h: 140 },
-      { x: 800, y: 120, w: 10, h: 140 },
-      { x: 950, y: 120, w: 10, h: 140 },
-      { x: 1100, y: 120, w: 10, h: 140 },
-      { x: 1250, y: 120, w: 10, h: 140 },
-      
-      // Horizontal connectors top
-      { x: 150, y: 200, w: 100, h: 10 },
-      { x: 300, y: 200, w: 100, h: 10 },
-      { x: 450, y: 200, w: 100, h: 10 },
-      { x: 600, y: 200, w: 100, h: 10 },
-      { x: 750, y: 200, w: 100, h: 10 },
-      { x: 900, y: 200, w: 100, h: 10 },
-      { x: 1050, y: 200, w: 100, h: 10 },
-      { x: 1200, y: 200, w: 100, h: 10 },
-      
-      // Middle section - staggered pattern
-      { x: 180, y: 320, w: 10, h: 140 },
-      { x: 380, y: 320, w: 10, h: 140 },
-      { x: 580, y: 320, w: 10, h: 140 },
-      { x: 780, y: 320, w: 10, h: 140 },
-      { x: 980, y: 320, w: 10, h: 140 },
-      { x: 1180, y: 320, w: 10, h: 140 },
-      
-      // Horizontal connectors middle
-      { x: 150, y: 380, w: 100, h: 10 },
-      { x: 330, y: 380, w: 100, h: 10 },
-      { x: 530, y: 380, w: 100, h: 10 },
-      { x: 730, y: 380, w: 100, h: 10 },
-      { x: 930, y: 380, w: 100, h: 10 },
-      { x: 1130, y: 380, w: 100, h: 10 },
-      
-      // Bottom section - vertical walls
-      { x: 200, y: 440, w: 10, h: 100 },
-      { x: 350, y: 440, w: 10, h: 100 },
-      { x: 500, y: 440, w: 10, h: 100 },
-      { x: 650, y: 440, w: 10, h: 100 },
-      { x: 800, y: 440, w: 10, h: 100 },
-      { x: 950, y: 440, w: 10, h: 100 },
-      { x: 1100, y: 440, w: 10, h: 100 },
-      { x: 1250, y: 440, w: 10, h: 100 },
-      
-      // Center obstacle for strategy
-      { x: 680, y: 280, w: 40, h: 40 }
-    ];
+    // Generate random obstacles each game
+    this.generateRandomObstacles();
+  }
+
+  generateRandomObstacles() {
+    // Create a random maze-like pattern
+    this.obstacles = [];
+    
+    // Random vertical walls
+    for (let x = 150; x < 1400; x += Math.random() * 150 + 100) {
+      const startY = Math.random() * 200 + 50;
+      const height = Math.random() * 250 + 100;
+      if (startY + height < 550) {
+        this.obstacles.push({
+          x: x,
+          y: startY,
+          w: 10,
+          h: height
+        });
+      }
+    }
+    
+    // Random horizontal walls
+    for (let y = 150; y < 550; y += Math.random() * 150 + 100) {
+      const startX = Math.random() * 400 + 100;
+      const width = Math.random() * 250 + 80;
+      if (startX + width < 1350) {
+        this.obstacles.push({
+          x: startX,
+          y: y,
+          w: width,
+          h: 10
+        });
+      }
+    }
+    
+    // Add some random center obstacles
+    for (let i = 0; i < 3; i++) {
+      const x = Math.random() * 1000 + 200;
+      const y = Math.random() * 400 + 100;
+      const size = Math.random() * 60 + 30;
+      this.obstacles.push({
+        x: x,
+        y: y,
+        w: size,
+        h: size
+      });
+    }
   }
 
   addPlayer(player) {
     this.players[player.id] = player;
     this.teamCounts[player.teamIndex]++;
+    
+    // Spawn player at random position (either new game or joining mid-game)
+    const spawn = this.getRandomSpawnPoint();
+    player.x = spawn.x;
+    player.y = spawn.y;
+    player.angle = spawn.angle || 0;
+    player.hp = player.maxHp;
+    player.alive = true;
   }
 
   removePlayer(playerId) {
@@ -320,7 +322,8 @@ class Game {
         vy: p.vy
       })),
       scores: this.scores,
-      mapIndex: this.mapIndex
+      mapIndex: this.mapIndex,
+      obstacles: this.obstacles
     };
   }
 }
