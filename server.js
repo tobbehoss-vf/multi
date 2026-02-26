@@ -44,8 +44,8 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 14; // Sänkt från 15
-    this.vy = Math.sin(angle) * 14;
+    this.vx = Math.cos(angle) * 8; // Sänkt från 15
+    this.vy = Math.sin(angle) * 8;
     this.playerId = playerId;
     this.playerName = playerName;
     this.teamIndex = teamIndex;
@@ -91,8 +91,8 @@ class Game {
     }
   }
 
-  isColliding(x, y, radius = 16) {
-    // Quick bounding box check - much faster
+  isColliding(x, y, radius = 12) {
+    // Check collision with obstacles - smaller radius for easier movement
     for (let obs of this.obstacles) {
       if (x + radius > obs.x && x - radius < obs.x + obs.w &&
           y + radius > obs.y && y - radius < obs.y + obs.h) {
@@ -350,10 +350,21 @@ io.on('connection', (socket) => {
       player.angle += 0.08;
     }
 
-    // Check collision before moving
+    // Check collision with separate X/Y checks for smoother movement
+    // Try full movement first
     if (!game.isColliding(newX, newY)) {
       player.x = newX;
       player.y = newY;
+    } else {
+      // If full movement collides, try X-only movement
+      if (!game.isColliding(newX, player.y)) {
+        player.x = newX;
+      }
+      // Try Y-only movement
+      else if (!game.isColliding(player.x, newY)) {
+        player.y = newY;
+      }
+      // If both collide, don't move
     }
 
     // Keep player in bounds
@@ -396,7 +407,7 @@ io.on('connection', (socket) => {
     if (player.ammo === 0) {
       player.isReloading = true;
       player.reloadStartTime = Date.now();
-      player.reloadTime = 1000; // 1.5 sekunder reload-tid
+      player.reloadTime = 1000; // 1 sekund reload-tid
     }
 
     io.to(gameId).emit('gameStateUpdate', game.getGameState());
