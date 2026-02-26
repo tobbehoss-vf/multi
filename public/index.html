@@ -143,6 +143,11 @@
         shootSound.volume = 0.3;
         shootSound.preload = 'auto';
 
+        // Pre-load hit sound
+        const hitSound = new Audio('/hit.mp3');
+        hitSound.volume = 0.3;
+        hitSound.preload = 'auto';
+
         // Cookie functions
         function setCookie(name, value, days = 7) {
             const date = new Date();
@@ -204,6 +209,15 @@
                     shootSound.play().catch(() => {});
                 } catch (e) {
                     console.log('Sound play error:', e);
+                }
+            });
+
+            socket.on('hitEvent', () => {
+                try {
+                    hitSound.currentTime = 0;
+                    hitSound.play().catch(() => {});
+                } catch (e) {
+                    console.log('Hit sound error:', e);
                 }
             });
 
