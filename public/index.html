@@ -133,6 +133,30 @@
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
         const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
 
+        // Cookie-funktioner
+        function setCookie(name, value, days = 7) {
+            const date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            const expires = "expires=" + date.toUTCString();
+            document.cookie = name + "=" + value + ";" + expires + ";path=/";
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                let cookie = cookies[i].trim();
+                if (cookie.indexOf(nameEQ) === 0) {
+                    return cookie.substring(nameEQ.length);
+                }
+            }
+            return null;
+        }
+
+        function deleteCookie(name) {
+            document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        }
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
@@ -147,6 +171,34 @@
 
             socket.on('connect', () => {
                 console.log('Connected');
+                
+                // Försök reconnect till tidigare spel
+                const savedGameId = getCookie('gameId');
+                const savedPlayerId = getCookie('playerId');
+                const savedName = getCookie('playerName');
+                const savedTeam = getCookie('teamIndex');
+
+                if (savedGameId && savedPlayerId && savedName) {
+                    console.log('Attempting to reconnect...');
+                    socket.emit('reconnectPlayer', {
+                        gameId: savedGameId,
+                        playerId: savedPlayerId,
+                        name: savedName,
+                        teamIndex: parseInt(savedTeam)
+                    }, success => {
+                        if (success) {
+                            currentGameId = savedGameId;
+                            currentPlayerId = savedPlayerId;
+                            isPlaying = true;
+                            document.getElementById('lobbyScreen').style.display = 'none';
+                            document.getElementById('gameContainer').style.display = 'flex';
+                            setTimeout(() => {
+                                canvas.width = document.getElementById('gameArea').clientWidth;
+                                canvas.height = document.getElementById('gameArea').clientHeight;
+                            }, 50);
+                        }
+                    });
+                }
             });
 
             socket.on('gameStateUpdate', (state) => {
@@ -198,10 +250,16 @@
                     currentGameId = gameId;
                     currentPlayerId = result.playerId;
                     isPlaying = true;
+                    
+                    // Spara cookies
+                    setCookie('gameId', gameId, 7);
+                    setCookie('playerId', result.playerId, 7);
+                    setCookie('playerName', name, 7);
+                    setCookie('teamIndex', teamIndex, 7);
+                    
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
                     
-                    // Resize canvas när spelet startar
                     setTimeout(() => {
                         canvas.width = document.getElementById('gameArea').clientWidth;
                         canvas.height = document.getElementById('gameArea').clientHeight;
@@ -214,6 +272,13 @@
             isPlaying = false;
             currentGameId = null;
             currentPlayerId = null;
+            
+            // Ta bort cookies
+            deleteCookie('gameId');
+            deleteCookie('playerId');
+            deleteCookie('playerName');
+            deleteCookie('teamIndex');
+            
             document.getElementById('lobbyScreen').style.display = 'flex';
             document.getElementById('gameContainer').style.display = 'none';
             if (socket) {
@@ -303,17 +368,17 @@
                     grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                     ctx.fill();
 
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
                     ctx.fill();
 
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
                     ctx.fill();
                 });
             }
