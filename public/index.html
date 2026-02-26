@@ -375,47 +375,59 @@
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
-            // Draw obstacles - labyrint with thinner walls
+            // Draw obstacles - labyrint based on image
             ctx.fillStyle = '#555555';
-            // Vertical walls
-            ctx.fillRect(220, 100, 20, 180);
-            ctx.fillRect(420, 100, 20, 180);
-            ctx.fillRect(620, 100, 20, 180);
-            ctx.fillRect(820, 100, 20, 180);
-            ctx.fillRect(1020, 100, 20, 180);
-            ctx.fillRect(1220, 100, 20, 180);
+            // Top-left
+            ctx.fillRect(100, 100, 100, 10);
+            ctx.fillRect(100, 100, 10, 150);
+            ctx.fillRect(100, 240, 100, 10);
+            ctx.fillRect(190, 100, 10, 140);
             
-            // Horizontal walls top
-            ctx.fillRect(160, 170, 120, 20);
-            ctx.fillRect(460, 170, 120, 20);
-            ctx.fillRect(760, 170, 120, 20);
-            ctx.fillRect(1060, 170, 120, 20);
+            // Top-middle
+            ctx.fillRect(250, 100, 100, 10);
+            ctx.fillRect(250, 100, 10, 150);
+            ctx.fillRect(340, 100, 10, 140);
             
-            // Middle vertical walls
-            ctx.fillRect(320, 310, 20, 180);
-            ctx.fillRect(520, 310, 20, 180);
-            ctx.fillRect(720, 310, 20, 180);
-            ctx.fillRect(920, 310, 20, 180);
-            ctx.fillRect(1120, 310, 20, 180);
+            // Top-right
+            ctx.fillRect(400, 100, 250, 10);
+            ctx.fillRect(640, 100, 10, 200);
+            ctx.fillRect(400, 190, 50, 10);
+            ctx.fillRect(480, 140, 10, 150);
+            ctx.fillRect(550, 140, 10, 150);
             
-            // Horizontal walls middle
-            ctx.fillRect(160, 370, 120, 20);
-            ctx.fillRect(460, 400, 120, 20);
-            ctx.fillRect(760, 370, 120, 20);
-            ctx.fillRect(1060, 400, 120, 20);
+            // Middle-left
+            ctx.fillRect(100, 320, 100, 10);
+            ctx.fillRect(190, 280, 10, 140);
+            ctx.fillRect(100, 420, 100, 10);
             
-            // Bottom vertical walls
-            ctx.fillRect(220, 430, 20, 140);
-            ctx.fillRect(420, 430, 20, 140);
-            ctx.fillRect(620, 430, 20, 140);
-            ctx.fillRect(820, 430, 20, 140);
-            ctx.fillRect(1020, 430, 20, 140);
-            ctx.fillRect(1220, 430, 20, 140);
+            // Middle-center
+            ctx.fillRect(250, 310, 10, 170);
+            ctx.fillRect(250, 310, 100, 10);
+            ctx.fillRect(340, 250, 10, 170);
+            ctx.fillRect(250, 480, 90, 10);
             
             // Center maze
-            ctx.fillRect(670, 270, 20, 80);
-            ctx.fillRect(740, 270, 20, 80);
-            ctx.fillRect(705, 300, 50, 20);
+            ctx.fillRect(450, 250, 10, 180);
+            ctx.fillRect(450, 250, 100, 10);
+            ctx.fillRect(540, 250, 10, 100);
+            ctx.fillRect(520, 330, 50, 10);
+            ctx.fillRect(550, 310, 10, 50);
+            
+            // Right section
+            ctx.fillRect(750, 100, 10, 400);
+            ctx.fillRect(750, 240, 100, 10);
+            ctx.fillRect(750, 350, 100, 10);
+            ctx.fillRect(830, 140, 10, 220);
+            ctx.fillRect(830, 360, 10, 140);
+            
+            // Bottom
+            ctx.fillRect(200, 500, 10, 80);
+            ctx.fillRect(350, 520, 200, 10);
+            ctx.fillRect(450, 450, 10, 80);
+            ctx.fillRect(600, 500, 10, 80);
+            
+            // Center obstacle
+            ctx.fillRect(600, 300, 50, 50);
 
             // Draw spawn zones (semi-transparent)
             ctx.fillStyle = 'rgba(0, 153, 255, 0.1)';
