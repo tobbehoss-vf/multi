@@ -396,7 +396,7 @@ io.on('connection', (socket) => {
     if (player.ammo === 0) {
       player.isReloading = true;
       player.reloadStartTime = Date.now();
-      player.reloadTime = 1500; // 1.5 sekunder reload-tid
+      player.reloadTime = 1000; // 1.5 sekunder reload-tid
     }
 
     io.to(gameId).emit('gameStateUpdate', game.getGameState());
@@ -414,7 +414,7 @@ io.on('connection', (socket) => {
         player.ammo = player.maxAmmo;
         player.isReloading = false;
         io.to(gameId).emit('gameStateUpdate', games[gameId].getGameState());
-      }, 2000);
+      }, 1000);
     }
   });
 
