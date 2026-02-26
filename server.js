@@ -347,7 +347,7 @@ io.on('connection', (socket) => {
       id,
       playerCount: Object.keys(games[id].players).length,
       state: games[id].state
-    }));
+    })).filter(game => game.state === 'lobby' || game.state === 'playing');
     callback(gameList);
   });
 
