@@ -68,13 +68,47 @@ class Game {
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
     
-    // Define obstacles (x, y, width, height)
+    // Define obstacles - labyrint design with thin walls
     this.obstacles = [
-      { x: 300, y: 150, w: 60, h: 300 },   // Left-middle vertical
-      { x: 1040, y: 150, w: 60, h: 300 },  // Right-middle vertical
-      { x: 550, y: 200, w: 300, h: 50 },   // Upper-middle horizontal
-      { x: 550, y: 350, w: 300, h: 50 },   // Lower-middle horizontal
-      { x: 650, y: 250, w: 100, h: 100 }   // Center square
+      // Vertical walls (tunnare - 30 breda)
+      { x: 200, y: 100, w: 30, h: 200 },
+      { x: 400, y: 100, w: 30, h: 200 },
+      { x: 600, y: 100, w: 30, h: 200 },
+      { x: 800, y: 100, w: 30, h: 200 },
+      { x: 1000, y: 100, w: 30, h: 200 },
+      { x: 1200, y: 100, w: 30, h: 200 },
+      
+      // Horizontal walls top section
+      { x: 150, y: 150, w: 150, h: 30 },
+      { x: 450, y: 150, w: 150, h: 30 },
+      { x: 750, y: 150, w: 150, h: 30 },
+      { x: 1050, y: 150, w: 150, h: 30 },
+      
+      // Middle labyrinth section
+      { x: 300, y: 300, w: 30, h: 200 },
+      { x: 500, y: 300, w: 30, h: 200 },
+      { x: 700, y: 300, w: 30, h: 200 },
+      { x: 900, y: 300, w: 30, h: 200 },
+      { x: 1100, y: 300, w: 30, h: 200 },
+      
+      // Horizontal walls middle section
+      { x: 150, y: 350, w: 150, h: 30 },
+      { x: 450, y: 380, w: 150, h: 30 },
+      { x: 750, y: 350, w: 150, h: 30 },
+      { x: 1050, y: 380, w: 150, h: 30 },
+      
+      // Bottom section vertical
+      { x: 200, y: 400, w: 30, h: 180 },
+      { x: 400, y: 400, w: 30, h: 180 },
+      { x: 600, y: 400, w: 30, h: 180 },
+      { x: 800, y: 400, w: 30, h: 180 },
+      { x: 1000, y: 400, w: 30, h: 180 },
+      { x: 1200, y: 400, w: 30, h: 180 },
+      
+      // Center maze
+      { x: 650, y: 250, w: 30, h: 100 },
+      { x: 720, y: 250, w: 30, h: 100 },
+      { x: 685, y: 280, w: 70, h: 30 }
     ];
   }
 
@@ -507,12 +541,12 @@ io.on('connection', (socket) => {
   });
 });
 
-// Clean up inactive players every 30 seconds
+// Clean up inactive players every 5 seconds
 setInterval(() => {
   const now = Date.now();
   for (let playerId in players) {
     const playerData = players[playerId];
-    if (playerData && playerData.lastActivity && (now - playerData.lastActivity) > 30000) {
+    if (playerData && playerData.lastActivity && (now - playerData.lastActivity) > 5000) {
       const { gameId, player } = playerData;
       const game = games[gameId];
       if (game) {
@@ -526,7 +560,7 @@ setInterval(() => {
       delete players[playerId];
     }
   }
-}, 30000);
+}, 5000);
 
 // Game loop
 let loopCount = 0;
@@ -543,6 +577,13 @@ setInterval(() => {
       //console.log(`[Update] Game ${gameId}: ${state.projectiles.length} projectiles after update`, state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
     }
     io.to(gameId).emit('gameStateUpdate', state);
+    
+    // Uppdatera lastActivity för alla aktiva spelare i spelet
+    for (let playerId in game.players) {
+      if (players[playerId]) {
+        players[playerId].lastActivity = Date.now();
+      }
+    }
   }
 }, 1000 / 30); // 30 FPS - reducerad för mindre server load
 
