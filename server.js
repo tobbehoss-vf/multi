@@ -68,6 +68,8 @@ class Game {
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
     this.hitThisFrame = false; // Track hits this frame
+    this.collisionThisFrame = false; // Track tank collisions
+    this.wallCollisionThisFrame = false; // Track wall collisions
     
     // Generate random obstacles each game
     this.generateRandomObstacles();
@@ -145,6 +147,35 @@ class Game {
     for (let obs of this.obstacles) {
       if (x + radius > obs.x && x - radius < obs.x + obs.w &&
           y + radius > obs.y && y - radius < obs.y + obs.h) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  damageWall(projX, projY) {
+    // Find which obstacle was hit and create a gap
+    for (let obstacle of this.obstacles) {
+      if (projX >= obstacle.x && projX <= obstacle.x + obstacle.w &&
+          projY >= obstacle.y && projY <= obstacle.y + obstacle.h) {
+        // Hittade vägg - gör en 5px glipa
+        // Minska bredden eller höjden beroende på orientering
+        
+        if (obstacle.w > obstacle.h) {
+          // Horisontell vägg - gör glipa i höjden
+          obstacle.h -= 5;
+          if (obstacle.h <= 0) {
+            // Ta bort vägg helt om den blir för liten
+            this.obstacles = this.obstacles.filter(o => o !== obstacle);
+          }
+        } else {
+          // Vertikal vägg - gör glipa i bredden
+          obstacle.w -= 5;
+          if (obstacle.w <= 0) {
+            // Ta bort vägg helt om den blir för liten
+            this.obstacles = this.obstacles.filter(o => o !== obstacle);
+          }
+        }
         return true;
       }
     }
@@ -251,6 +282,8 @@ class Game {
 
       // Check if projectile hit an obstacle
       if (this.projectileHitObstacle(proj.x, proj.y, proj.vx, proj.vy, prevX, prevY)) {
+        // Skada väggen
+        this.damageWall(proj.x, proj.y);
         continue; // Remove projectile
       }
 
@@ -466,20 +499,77 @@ io.on('connection', (socket) => {
     }
 
     // Check collision with separate X/Y checks for smoother movement
+    let wallCollided = false;
+    
     // Try full movement first
     if (!game.isColliding(newX, newY)) {
       player.x = newX;
       player.y = newY;
     } else {
+      wallCollided = true;
       // If full movement collides, try X-only movement
       if (!game.isColliding(newX, player.y)) {
         player.x = newX;
+        wallCollided = false;
       }
       // Try Y-only movement
       else if (!game.isColliding(player.x, newY)) {
         player.y = newY;
+        wallCollided = false;
       }
-      // If both collide, don't move
+      // If both collide, don't move - mark collision
+    }
+    
+    // Check tank-to-tank collisions
+    for (let otherId in game.players) {
+      if (otherId === player.id) continue;
+      const other = game.players[otherId];
+      if (!other.alive) continue;
+      
+      const dx = other.x - player.x;
+      const dy = other.y - player.y;
+      const distSq = dx * dx + dy * dy;
+      
+      // Tank collision radius = 16 * 2 = 32 (diameter)
+      if (distSq < 1024) { // 32*32 = 1024
+        // Tanks collided!
+        player.hp -= 3;
+        other.hp -= 3;
+        
+        if (player.hp < 0) player.hp = 0;
+        if (other.hp < 0) other.hp = 0;
+        
+        if (player.hp === 0) {
+          player.alive = false;
+          player.deaths++;
+        }
+        if (other.hp === 0) {
+          other.alive = false;
+          other.deaths++;
+        }
+        
+        // Emit collision event
+        game.collisionThisFrame = true;
+        
+        // Push tanks apart
+        const angle = Math.atan2(dy, dx);
+        const pushDist = 5;
+        player.x -= Math.cos(angle) * pushDist;
+        player.y -= Math.sin(angle) * pushDist;
+        other.x += Math.cos(angle) * pushDist;
+        other.y += Math.sin(angle) * pushDist;
+      }
+    }
+    
+    // Damage from wall collision
+    if (wallCollided && player.alive) {
+      player.hp -= 1;
+      if (player.hp <= 0) {
+        player.hp = 0;
+        player.alive = false;
+        player.deaths++;
+      }
+      game.wallCollisionThisFrame = true;
     }
 
     // Keep player in bounds
@@ -601,6 +691,18 @@ setInterval(() => {
     if (game.hitThisFrame) {
       io.to(gameId).emit('hitEvent');
       game.hitThisFrame = false; // Reset för nästa frame
+    }
+    
+    // Emit tank collision event
+    if (game.collisionThisFrame) {
+      io.to(gameId).emit('collisionEvent');
+      game.collisionThisFrame = false;
+    }
+    
+    // Emit wall collision event
+    if (game.wallCollisionThisFrame) {
+      io.to(gameId).emit('wallCollisionEvent');
+      game.wallCollisionThisFrame = false;
     }
     
     const state = game.getGameState();
