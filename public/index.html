@@ -81,7 +81,7 @@
                             <option value="3">🟢 Grön</option>
                         </select>
                     </div>
-                    <button onclick="joinGame()" style="width: 100%;">Spela</button>
+                    <button onclick="startPlaying()" style="width: 100%;">Spela</button>
                 </div>
             </div>
         </div>
@@ -117,7 +117,6 @@
 
             <div id="gameArea">
                 <canvas id="gameCanvas"></canvas>
-                <button id="startGameBtn" onclick="startGame()" class="leave-btn" style="right: 150px;">Starta spel</button>
                 <button onclick="leaveGame()" class="leave-btn">Lämna</button>
             </div>
         </div>
@@ -130,17 +129,21 @@
         let currentGameId = null;
         let currentPlayerId = null;
         let isPlaying = false;
-        let explosions = []; // Track explosions locally
+        let explosions = [];
 
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
         const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
 
         // Pre-load shoot sound
         const shootSound = new Audio('/smg.mp3');
         shootSound.volume = 0.3;
         shootSound.preload = 'auto';
 
-        // Cookie-funktioner
+        // Cookie functions
         function setCookie(name, value, days = 7) {
             const date = new Date();
             date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -164,10 +167,6 @@
             document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         }
 
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
-
         function initSocket() {
             if (typeof io === 'undefined') {
                 setTimeout(initSocket, 100);
@@ -178,43 +177,14 @@
 
             socket.on('connect', () => {
                 console.log('Connected');
-                
-                // Försök reconnect till tidigare spel
-                const savedGameId = getCookie('gameId');
-                const savedPlayerId = getCookie('playerId');
-                const savedName = getCookie('playerName');
-                const savedTeam = getCookie('teamIndex');
-
-                if (savedGameId && savedPlayerId && savedName) {
-                    console.log('Attempting to reconnect...');
-                    socket.emit('reconnectPlayer', {
-                        gameId: savedGameId,
-                        playerId: savedPlayerId,
-                        name: savedName,
-                        teamIndex: parseInt(savedTeam)
-                    }, success => {
-                        if (success) {
-                            currentGameId = savedGameId;
-                            currentPlayerId = savedPlayerId;
-                            isPlaying = true;
-                            document.getElementById('lobbyScreen').style.display = 'none';
-                            document.getElementById('gameContainer').style.display = 'flex';
-                            setTimeout(() => {
-                                canvas.width = document.getElementById('gameArea').clientWidth;
-                                canvas.height = document.getElementById('gameArea').clientHeight;
-                            }, 50);
-                        }
-                    });
-                }
             });
 
             socket.on('gameStateUpdate', (state) => {
-                // Hitta döda spelare och skapa explosioner
+                // Detect deaths for explosions
                 if (gameState && gameState.players) {
                     gameState.players.forEach(oldPlayer => {
                         const newPlayer = state.players.find(p => p.id === oldPlayer.id);
                         if (newPlayer && oldPlayer.hp > 0 && newPlayer.hp <= 0) {
-                            // Spelare dog just nu - skapa explosion
                             explosions.push({
                                 x: newPlayer.x,
                                 y: newPlayer.y,
@@ -236,22 +206,27 @@
                     console.log('Sound play error:', e);
                 }
             });
+
+            socket.on('gameStarted', () => {
+                console.log('Game started!');
+            });
         }
 
-        function joinGame() {
+        function startPlaying() {
             if (!socket) return;
             const name = document.getElementById('playerName').value || 'Player';
             const teamIndex = parseInt(document.getElementById('teamIndex').value);
 
+            // Försök hitta existerande spel
             socket.emit('getGames', games => {
                 let gameId = null;
-                let foundExistingGame = false;
-                
-                // Hitta ett spel som inte är fullt
+                let foundGame = false;
+
+                // Hitta första spel som inte är fullt
                 for (let game of games) {
-                    if (game.playerCount < 8) {
+                    if (game.playerCount < 8 && (game.state === 'lobby' || game.state === 'playing')) {
                         gameId = game.id;
-                        foundExistingGame = true;
+                        foundGame = true;
                         break;
                     }
                 }
@@ -259,15 +234,15 @@
                 // Om inget spel finns, skapa ett nytt
                 if (!gameId) {
                     socket.emit('createGame', 0, id => {
-                        joinGameImpl(id, name, teamIndex, true); // true = är skapare
+                        joinGameImpl(id, name, teamIndex);
                     });
                 } else {
-                    joinGameImpl(gameId, name, teamIndex, false); // false = är inte skapare
+                    joinGameImpl(gameId, name, teamIndex);
                 }
             });
         }
 
-        function joinGameImpl(gameId, name, teamIndex, isCreator) {
+        function joinGameImpl(gameId, name, teamIndex) {
             socket.emit('joinGame', gameId, {
                 name: name,
                 teamIndex: teamIndex,
@@ -277,24 +252,13 @@
                     currentGameId = gameId;
                     currentPlayerId = result.playerId;
                     isPlaying = true;
-                    
-                    // Spara cookies
-                    setCookie('gameId', gameId, 7);
-                    setCookie('playerId', result.playerId, 7);
-                    setCookie('playerName', name, 7);
-                    setCookie('teamIndex', teamIndex, 7);
-                    
+
+                    // Starta spelet automatiskt när första spelaren jointar
+                    socket.emit('startGame', gameId, () => {});
+
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
-                    
-                    // Visa/dölj startGame-knapp baserat på om du är skapare
-                    const startBtn = document.getElementById('startGameBtn');
-                    if (isCreator) {
-                        startBtn.style.display = 'block';
-                    } else {
-                        startBtn.style.display = 'none';
-                    }
-                    
+
                     setTimeout(() => {
                         canvas.width = document.getElementById('gameArea').clientWidth;
                         canvas.height = document.getElementById('gameArea').clientHeight;
@@ -309,28 +273,13 @@
             isPlaying = false;
             currentGameId = null;
             currentPlayerId = null;
-            
-            // Ta bort cookies
-            deleteCookie('gameId');
-            deleteCookie('playerId');
-            deleteCookie('playerName');
-            deleteCookie('teamIndex');
-            
+
             document.getElementById('lobbyScreen').style.display = 'flex';
             document.getElementById('gameContainer').style.display = 'none';
             if (socket) {
                 socket.disconnect();
                 setTimeout(() => socket.connect(), 500);
             }
-        }
-
-        function startGame() {
-            if (!socket || !currentGameId) return;
-            socket.emit('startGame', currentGameId, (result) => {
-                if (!result.success) {
-                    alert('Kunde inte starta spelet: ' + (result.error || 'Okänt fel'));
-                }
-            });
         }
 
         function drawTank(ctx, x, y, angle, colorIndex) {
@@ -397,72 +346,57 @@
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
-            // Draw obstacles - labyrint based on image
+            // Draw obstacles - improved labyrint
             ctx.fillStyle = '#555555';
-            // Top-left
-            ctx.fillRect(100, 100, 100, 10);
-            ctx.fillRect(100, 100, 10, 150);
-            ctx.fillRect(100, 240, 100, 10);
-            ctx.fillRect(190, 100, 10, 140);
             
-            // Top-middle
-            ctx.fillRect(250, 100, 100, 10);
-            ctx.fillRect(250, 100, 10, 150);
-            ctx.fillRect(340, 100, 10, 140);
+            // Top section
+            ctx.fillRect(200, 120, 10, 140);
+            ctx.fillRect(350, 120, 10, 140);
+            ctx.fillRect(500, 120, 10, 140);
+            ctx.fillRect(650, 120, 10, 140);
+            ctx.fillRect(800, 120, 10, 140);
+            ctx.fillRect(950, 120, 10, 140);
+            ctx.fillRect(1100, 120, 10, 140);
+            ctx.fillRect(1250, 120, 10, 140);
             
-            // Top-right
-            ctx.fillRect(400, 100, 250, 10);
-            ctx.fillRect(640, 100, 10, 200);
-            ctx.fillRect(400, 190, 50, 10);
-            ctx.fillRect(480, 140, 10, 150);
-            ctx.fillRect(550, 140, 10, 150);
+            // Horizontal connectors top
+            ctx.fillRect(150, 200, 100, 10);
+            ctx.fillRect(300, 200, 100, 10);
+            ctx.fillRect(450, 200, 100, 10);
+            ctx.fillRect(600, 200, 100, 10);
+            ctx.fillRect(750, 200, 100, 10);
+            ctx.fillRect(900, 200, 100, 10);
+            ctx.fillRect(1050, 200, 100, 10);
+            ctx.fillRect(1200, 200, 100, 10);
             
-            // Middle-left
-            ctx.fillRect(100, 320, 100, 10);
-            ctx.fillRect(190, 280, 10, 140);
-            ctx.fillRect(100, 420, 100, 10);
+            // Middle section
+            ctx.fillRect(180, 320, 10, 140);
+            ctx.fillRect(380, 320, 10, 140);
+            ctx.fillRect(580, 320, 10, 140);
+            ctx.fillRect(780, 320, 10, 140);
+            ctx.fillRect(980, 320, 10, 140);
+            ctx.fillRect(1180, 320, 10, 140);
             
-            // Middle-center
-            ctx.fillRect(250, 310, 10, 170);
-            ctx.fillRect(250, 310, 100, 10);
-            ctx.fillRect(340, 250, 10, 170);
-            ctx.fillRect(250, 480, 90, 10);
+            // Horizontal connectors middle
+            ctx.fillRect(150, 380, 100, 10);
+            ctx.fillRect(330, 380, 100, 10);
+            ctx.fillRect(530, 380, 100, 10);
+            ctx.fillRect(730, 380, 100, 10);
+            ctx.fillRect(930, 380, 100, 10);
+            ctx.fillRect(1130, 380, 100, 10);
             
-            // Center maze
-            ctx.fillRect(450, 250, 10, 180);
-            ctx.fillRect(450, 250, 100, 10);
-            ctx.fillRect(540, 250, 10, 100);
-            ctx.fillRect(520, 330, 50, 10);
-            ctx.fillRect(550, 310, 10, 50);
-            
-            // Right section
-            ctx.fillRect(750, 100, 10, 400);
-            ctx.fillRect(750, 240, 100, 10);
-            ctx.fillRect(750, 350, 100, 10);
-            ctx.fillRect(830, 140, 10, 220);
-            ctx.fillRect(830, 360, 10, 140);
-            
-            // Bottom
-            ctx.fillRect(200, 500, 10, 80);
-            ctx.fillRect(350, 520, 200, 10);
-            ctx.fillRect(450, 450, 10, 80);
-            ctx.fillRect(600, 500, 10, 80);
+            // Bottom section
+            ctx.fillRect(200, 440, 10, 100);
+            ctx.fillRect(350, 440, 10, 100);
+            ctx.fillRect(500, 440, 10, 100);
+            ctx.fillRect(650, 440, 10, 100);
+            ctx.fillRect(800, 440, 10, 100);
+            ctx.fillRect(950, 440, 10, 100);
+            ctx.fillRect(1100, 440, 10, 100);
+            ctx.fillRect(1250, 440, 10, 100);
             
             // Center obstacle
-            ctx.fillRect(600, 300, 50, 50);
-
-            // Draw spawn zones (semi-transparent)
-            ctx.fillStyle = 'rgba(0, 153, 255, 0.1)';
-            ctx.fillRect(50, 70, 60, 450); // Blå - vänster
-            
-            ctx.fillStyle = 'rgba(255, 51, 51, 0.1)';
-            ctx.fillRect(1290, 70, 60, 450); // Röd - höger
-            
-            ctx.fillStyle = 'rgba(255, 255, 0, 0.1)';
-            ctx.fillRect(200, 50, 1000, 60); // Gul - topp
-            
-            ctx.fillStyle = 'rgba(0, 255, 136, 0.1)';
-            ctx.fillRect(200, 540, 1000, 60); // Grön - botten
+            ctx.fillRect(680, 280, 40, 40);
 
             // Draw projectiles
             if (gameState.projectiles && gameState.projectiles.length > 0) {
@@ -492,19 +426,27 @@
             explosions = explosions.filter(exp => {
                 if (exp.age >= exp.maxAge) return false;
                 
-                const radius = (exp.age / exp.maxAge) * 60;
+                const radius = (exp.age / exp.maxAge) * 100;
                 const alpha = 1 - (exp.age / exp.maxAge);
                 
-                // Outer ring
-                ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 0.8})`;
+                ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 0.9})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Inner glow
-                ctx.fillStyle = `rgba(255, 200, 0, ${alpha})`;
+                ctx.fillStyle = `rgba(255, 165, 0, ${alpha * 0.8})`;
                 ctx.beginPath();
-                ctx.arc(exp.x, exp.y, radius * 0.6, 0, Math.PI * 2);
+                ctx.arc(exp.x, exp.y, radius * 0.7, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = `rgba(255, 255, 0, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, radius * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, radius * 0.2, 0, Math.PI * 2);
                 ctx.fill();
                 
                 exp.age++;
