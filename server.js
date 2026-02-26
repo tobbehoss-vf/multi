@@ -92,10 +92,21 @@ class Game {
   }
 
   isColliding(x, y, radius = 16) {
-    // Check collision with obstacles
+    // Quick bounding box check - much faster
     for (let obs of this.obstacles) {
       if (x + radius > obs.x && x - radius < obs.x + obs.w &&
           y + radius > obs.y && y - radius < obs.y + obs.h) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  projectileHitObstacle(x, y) {
+    // Same check for projectiles
+    for (let obs of this.obstacles) {
+      if (x >= obs.x && x <= obs.x + obs.w &&
+          y >= obs.y && y <= obs.y + obs.h) {
         return true;
       }
     }
@@ -163,15 +174,7 @@ class Game {
       }
 
       // Check if projectile hit an obstacle
-      let hitObstacle = false;
-      for (let obs of this.obstacles) {
-        if (proj.x > obs.x && proj.x < obs.x + obs.w &&
-            proj.y > obs.y && proj.y < obs.y + obs.h) {
-          hitObstacle = true;
-          break;
-        }
-      }
-      if (hitObstacle) {
+      if (this.projectileHitObstacle(proj.x, proj.y)) {
         continue; // Remove projectile
       }
 
@@ -457,7 +460,7 @@ setInterval(() => {
     }
     io.to(gameId).emit('gameStateUpdate', state);
   }
-}, 1000 / 60); // 60 FPS
+}, 1000 / 30); // 30 FPS - reducerad för mindre server load
 
 server.listen(PORT, () => {
   //console.log(`Server running on port ${PORT}`);
