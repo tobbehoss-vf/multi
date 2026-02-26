@@ -374,8 +374,9 @@ io.on('connection', (socket) => {
     }
 
     const game = games[gameId];
-    if (game.state !== 'lobby') {
-      callback({ success: false, error: 'Game already started' });
+    // Tillåt join både i lobby och playing states
+    if (game.state !== 'lobby' && game.state !== 'playing') {
+      callback({ success: false, error: 'Game not available' });
       return;
     }
 
@@ -393,8 +394,6 @@ io.on('connection', (socket) => {
     io.to(gameId).emit('playerJoined', { name: playerData.name, teamIndex: playerData.teamIndex });
 
     callback({ success: true, playerId: socket.id });
-
-    // NOT auto-starting anymore - require manual start
   });
 
   socket.on('startGame', (gameId, callback) => {
