@@ -3,53 +3,287 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tank Battle</title>
+    <title>⚔ TANK BATTLE ⚔</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; }
-        body { font-family: 'Courier New', monospace; background: #0a0a15; color: #fff; overflow: hidden; }
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background: linear-gradient(135deg, #0a0a15 0%, #1a1a3e 100%);
+            color: #fff; 
+            overflow: hidden; 
+        }
         
         #mainContainer { display: flex; width: 100%; height: 100%; }
         
-        #lobbyScreen { display: flex; width: 100%; height: 100%; padding: 40px; justify-content: center; align-items: center; background: linear-gradient(135deg, #0f0f1e 0%, #1a1a3e 100%); }
+        /* LOBBY SCREEN */
+        #lobbyScreen { 
+            display: flex; 
+            width: 100%; 
+            height: 100%; 
+            padding: 40px; 
+            justify-content: center; 
+            align-items: center; 
+            background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a15 100%);
+        }
+        
         #lobby { text-align: center; }
-        .lobby-header h1 { font-size: 3em; color: #00ff88; margin-bottom: 30px; }
-        .lobby-content { background: rgba(0, 0, 0, 0.3); border: 2px solid #00ff88; padding: 40px; border-radius: 8px; max-width: 400px; }
-        .lobby-content h2 { color: #00ff88; margin-bottom: 30px; }
-        .form-group { margin-bottom: 20px; text-align: left; }
-        .form-group label { display: block; color: #00ffff; margin-bottom: 5px; font-weight: bold; }
-        .form-group input, .form-group select { width: 100%; padding: 10px; background: rgba(0, 255, 255, 0.1); border: 1px solid #0064ff; color: #fff; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 1em; }
-        button { background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%); color: #000; border: none; padding: 12px 30px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; font-size: 1em; }
-        button:hover { transform: scale(1.05); }
         
-        #gameContainer { display: none; width: 100%; height: 100%; flex-direction: column; }
+        .lobby-header { margin-bottom: 40px; }
+        .lobby-header h1 { 
+            font-size: 4em; 
+            color: #00ff88; 
+            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            margin-bottom: 10px;
+            animation: glow 2s ease-in-out infinite;
+        }
         
-        #topHUD { background: rgba(0, 0, 0, 0.8); border-bottom: 2px solid #00ff88; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-shrink: 0; height: 140px; }
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88; }
+            50% { text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff; }
+        }
         
-        #playerInfoBox { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; }
-        #playerInfoBox h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
-        #playerStats { display: flex; gap: 20px; align-items: center; }
+        .lobby-subtitle { 
+            font-size: 1.2em; 
+            color: #00ffff;
+            letter-spacing: 2px;
+        }
         
-        .stat-group { display: flex; flex-direction: column; gap: 3px; }
-        .stat-group .label { color: #00ffff; font-size: 0.8em; }
+        .lobby-content { 
+            background: rgba(0, 0, 0, 0.6);
+            border: 3px solid;
+            border-image: linear-gradient(135deg, #00ff88, #00ffff) 1;
+            padding: 50px;
+            border-radius: 15px;
+            max-width: 500px;
+            backdrop-filter: blur(10px);
+        }
         
-        .health-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ff3333; border-radius: 2px; overflow: hidden; }
-        .health-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
+        .lobby-content h2 { 
+            color: #00ff88; 
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
         
-        .ammo-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; }
-        .ammo-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
+        .form-group { 
+            margin-bottom: 25px; 
+            text-align: left; 
+        }
         
-        #teamScores { display: flex; gap: 15px; }
-        .team-score { padding: 8px 12px; border: 2px solid; border-radius: 4px; background: rgba(0, 0, 0, 0.5); font-weight: bold; min-width: 120px; text-align: center; }
-        .team-blue { border-color: #0099ff; color: #0099ff; }
-        .team-red { border-color: #ff3333; color: #ff3333; }
-        .team-yellow { border-color: #ffff00; color: #ffff00; }
-        .team-green { border-color: #00ff88; color: #00ff88; }
+        .form-group label { 
+            display: block; 
+            color: #00ffff; 
+            margin-bottom: 8px; 
+            font-weight: bold;
+            font-size: 1.1em;
+        }
         
-        #gameArea { flex: 1; width: 100%; display: block; position: relative; overflow: hidden; }
-        #gameCanvas { display: block; width: 100%; height: 100%; }
+        .form-group input, .form-group select { 
+            width: 100%; 
+            padding: 12px; 
+            background: rgba(0, 255, 255, 0.05);
+            border: 2px solid #00ff88;
+            color: #fff; 
+            border-radius: 8px; 
+            font-family: 'Arial', sans-serif;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
         
-        .leave-btn { position: absolute; bottom: 15px; right: 15px; z-index: 10; }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            background: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 10px #00ff88;
+            border-color: #00ffff;
+        }
+        
+        button { 
+            background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%);
+            color: #000; 
+            border: none; 
+            padding: 14px 40px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-family: 'Arial', sans-serif;
+            font-size: 1.1em;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+            width: 100%;
+        }
+        
+        button:hover { 
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(0, 255, 136, 0.8);
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        /* GAME CONTAINER */
+        #gameContainer { 
+            display: none; 
+            width: 100%; 
+            height: 100%; 
+            flex-direction: column; 
+        }
+        
+        /* TOP HUD */
+        #topHUD { 
+            background: rgba(0, 0, 0, 0.95);
+            border-bottom: 3px solid #00ff88;
+            padding: 15px 25px;
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            gap: 20px; 
+            flex-shrink: 0; 
+            height: 120px;
+        }
+        
+        #playerInfoBox { 
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 12px 20px;
+        }
+        
+        #playerInfoBox h3 { 
+            color: #00ff88; 
+            margin-bottom: 10px; 
+            font-size: 0.95em;
+        }
+        
+        #playerStats { 
+            display: flex; 
+            gap: 25px; 
+            align-items: center;
+        }
+        
+        .stat-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 5px;
+        }
+        
+        .stat-group .label { 
+            color: #00ffff; 
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        
+        .health-bar, .ammo-bar { 
+            width: 120px; 
+            height: 24px; 
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid;
+            border-radius: 4px; 
+            overflow: hidden;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        
+        .health-bar { border-color: #ff3333; }
+        .ammo-bar { border-color: #00ffff; }
+        
+        .health-fill { 
+            height: 100%; 
+            background: linear-gradient(90deg, #ff3333, #ff6666);
+            transition: width 0.1s;
+        }
+        
+        .ammo-fill { 
+            height: 100%; 
+            background: linear-gradient(90deg, #00ffff, #00ff88);
+            transition: width 0.1s;
+        }
+        
+        #teamScores { 
+            display: flex; 
+            gap: 12px;
+            flex: 1;
+            justify-content: center;
+        }
+        
+        .team-score { 
+            padding: 10px 16px; 
+            border: 2px solid; 
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.6);
+            font-weight: bold; 
+            min-width: 100px;
+            text-align: center;
+            font-size: 1.1em;
+            box-shadow: 0 0 10px;
+            transition: all 0.3s;
+        }
+        
+        .team-blue { border-color: #0099ff; color: #0099ff; box-shadow: 0 0 10px rgba(0, 153, 255, 0.3); }
+        .team-red { border-color: #ff3333; color: #ff3333; box-shadow: 0 0 10px rgba(255, 51, 51, 0.3); }
+        .team-yellow { border-color: #ffff00; color: #ffff00; box-shadow: 0 0 10px rgba(255, 255, 0, 0.3); }
+        .team-green { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
+        
+        .team-score:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px currentColor;
+        }
+        
+        #gameArea { 
+            flex: 1; 
+            width: 100%; 
+            display: block; 
+            position: relative; 
+            overflow: hidden; 
+            background: #2a3a4a;
+        }
+        
+        #gameCanvas { 
+            display: block; 
+            width: 100%; 
+            height: 100%; 
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+        
+        .controls button {
+            width: auto;
+            padding: 10px 20px;
+            font-size: 0.9em;
+        }
+        
+        #leaveBtn {
+            background: linear-gradient(135deg, #ff3333 0%, #ff6666 100%);
+            color: #fff;
+        }
+        
+        #leaveBtn:hover {
+            box-shadow: 0 0 25px rgba(255, 51, 51, 0.8);
+        }
+        
+        /* Game info overlay */
+        .game-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff88;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #00ffff;
+            z-index: 5;
+        }
+        
+        .game-info div {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -58,23 +292,24 @@
             <div id="lobby">
                 <div class="lobby-header">
                     <h1>⚔ TANK BATTLE ⚔</h1>
+                    <div class="lobby-subtitle">MULTIPLAYER WAR ARENA</div>
                 </div>
                 <div class="lobby-content">
-                    <h2>Gå med i spel</h2>
+                    <h2>ENTER THE ARENA</h2>
                     <div class="form-group">
-                        <label>Spelarnamn</label>
-                        <input type="text" id="playerName" value="Player" placeholder="Ditt namn">
+                        <label>SOLDIER NAME</label>
+                        <input type="text" id="playerName" value="Player" placeholder="Enter your codename">
                     </div>
                     <div class="form-group">
-                        <label>Lag</label>
+                        <label>TEAM COLOR</label>
                         <select id="teamIndex">
-                            <option value="0">🔵 Blå</option>
-                            <option value="1">🔴 Röd</option>
-                            <option value="2">🟡 Gul</option>
-                            <option value="3">🟢 Grön</option>
+                            <option value="0">🔵 BLUE SQUADRON</option>
+                            <option value="1">🔴 RED ARMY</option>
+                            <option value="2">🟡 YELLOW FORCE</option>
+                            <option value="3">🟢 GREEN BATTALION</option>
                         </select>
                     </div>
-                    <button onclick="startPlaying()" style="width: 100%;">Spela</button>
+                    <button onclick="startPlaying()">DEPLOY</button>
                 </div>
             </div>
         </div>
@@ -82,10 +317,10 @@
         <div id="gameContainer">
             <div id="topHUD">
                 <div id="playerInfoBox">
-                    <h3>Din Tank</h3>
+                    <h3>⚙ TANK STATUS</h3>
                     <div id="playerStats">
                         <div class="stat-group">
-                            <span class="label">HP</span>
+                            <span class="label">ARMOR</span>
                             <div class="health-bar"><div class="health-fill" id="hpFill" style="width: 100%;"></div></div>
                         </div>
                         <div class="stat-group">
@@ -101,8 +336,15 @@
             </div>
 
             <div id="gameArea">
+                <div class="game-info">
+                    <div>💥 Left Click to Fire</div>
+                    <div>🔄 Right Click to Reload</div>
+                    <div>⌨️ WASD to Move</div>
+                </div>
                 <canvas id="gameCanvas"></canvas>
-                <button onclick="leaveGame()" class="leave-btn">Lämna</button>
+                <div class="controls">
+                    <button id="leaveBtn" onclick="leaveGame()">SURRENDER</button>
+                </div>
             </div>
         </div>
     </div>
@@ -117,32 +359,30 @@
         let explosions = [];
 
         const teamColors = ['#0099ff', '#ff3333', '#ffff00', '#00ff88'];
-        const teamColorsArray = ['blue', 'red', 'yellow', 'green'];
+        const teamNames = ['BLUE', 'RED', 'YELLOW', 'GREEN'];
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
 
-        // Pre-load shoot sound
+        // Audio
         const shootSound = new Audio('/smg.mp3');
         shootSound.volume = 0.3;
         shootSound.preload = 'auto';
 
-        // Pre-load hit sound
         const hitSound = new Audio('/hit.mp3');
         hitSound.volume = 0.3;
         hitSound.preload = 'auto';
 
-        // Pre-load collision sounds
-        const collisionSound = new Audio('/hit.mp3'); // Använd samma ljud för tank-collision
+        const collisionSound = new Audio('/hit.mp3');
         collisionSound.volume = 0.2;
         collisionSound.preload = 'auto';
 
-        const wallCollisionSound = new Audio('/hit.mp3'); // Använd samma ljud för vägg
+        const wallCollisionSound = new Audio('/hit.mp3');
         wallCollisionSound.volume = 0.15;
         wallCollisionSound.preload = 'auto';
 
-        // Cookie functions
+        // Cookies
         function setCookie(name, value, days = 7) {
             const date = new Date();
             date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -175,7 +415,7 @@
             socket = io();
 
             socket.on('connect', () => {
-                console.log('Connected');
+                console.log('🎮 Connected to battle server');
             });
 
             socket.on('gameStateUpdate', (state) => {
@@ -201,54 +441,40 @@
                 try {
                     shootSound.currentTime = 0;
                     shootSound.play().catch(() => {});
-                } catch (e) {
-                    console.log('Sound play error:', e);
-                }
+                } catch (e) {}
             });
 
             socket.on('hitEvent', () => {
                 try {
                     hitSound.currentTime = 0;
                     hitSound.play().catch(() => {});
-                } catch (e) {
-                    console.log('Hit sound error:', e);
-                }
+                } catch (e) {}
             });
 
             socket.on('collisionEvent', () => {
                 try {
                     collisionSound.currentTime = 0;
                     collisionSound.play().catch(() => {});
-                } catch (e) {
-                    console.log('Collision sound error:', e);
-                }
+                } catch (e) {}
             });
 
             socket.on('wallCollisionEvent', () => {
                 try {
                     wallCollisionSound.currentTime = 0;
                     wallCollisionSound.play().catch(() => {});
-                } catch (e) {
-                    console.log('Wall collision sound error:', e);
-                }
-            });
-
-            socket.on('gameStarted', () => {
-                console.log('Game started!');
+                } catch (e) {}
             });
         }
 
         function startPlaying() {
             if (!socket) return;
-            const name = document.getElementById('playerName').value || 'Player';
+            const name = document.getElementById('playerName').value || 'Soldier';
             const teamIndex = parseInt(document.getElementById('teamIndex').value);
 
-            // Försök hitta existerande spel
             socket.emit('getGames', games => {
                 let gameId = null;
                 let foundGame = false;
 
-                // Hitta första spel som inte är fullt
                 for (let game of games) {
                     if (game.playerCount < 8 && (game.state === 'lobby' || game.state === 'playing')) {
                         gameId = game.id;
@@ -257,7 +483,6 @@
                     }
                 }
 
-                // Om inget spel finns, skapa ett nytt
                 if (!gameId) {
                     socket.emit('createGame', 0, id => {
                         joinGameImpl(id, name, teamIndex);
@@ -279,7 +504,6 @@
                     currentPlayerId = result.playerId;
                     isPlaying = true;
 
-                    // Starta spelet automatiskt när första spelaren jointar
                     socket.emit('startGame', gameId, () => {});
 
                     document.getElementById('lobbyScreen').style.display = 'none';
@@ -290,7 +514,7 @@
                         canvas.height = document.getElementById('gameArea').clientHeight;
                     }, 50);
                 } else {
-                    alert('Kunde inte gå med i spelet: ' + (result.error || 'Okänt fel'));
+                    alert('❌ DEPLOYMENT FAILED: ' + (result.error || 'Unknown error'));
                 }
             });
         }
@@ -299,6 +523,11 @@
             isPlaying = false;
             currentGameId = null;
             currentPlayerId = null;
+
+            deleteCookie('gameId');
+            deleteCookie('playerId');
+            deleteCookie('playerName');
+            deleteCookie('teamIndex');
 
             document.getElementById('lobbyScreen').style.display = 'flex';
             document.getElementById('gameContainer').style.display = 'none';
@@ -315,21 +544,32 @@
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
             
+            // Tank body with glow
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 10;
+            
             ctx.fillStyle = color;
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
             ctx.fillRect(-10, -14, 20, 28);
             ctx.strokeRect(-10, -14, 20, 28);
             
+            ctx.shadowBlur = 0;
+            
+            // Turret
             ctx.beginPath();
             ctx.arc(0, -2, 6, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
             
-            ctx.fillStyle = '#666666';
+            // Barrel
+            ctx.fillStyle = '#888888';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
             ctx.fillRect(-2, -14, 4, 12);
             ctx.strokeRect(-2, -14, 4, 12);
             
+            // Muzzle
             ctx.fillStyle = '#333333';
             ctx.beginPath();
             ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
@@ -366,19 +606,42 @@
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            // Draw map
+            // Draw map background
+            ctx.fillStyle = '#1a2a3a';
+            ctx.fillRect(0, 0, mapWidth, mapHeight);
+            
+            // Draw grid for atmosphere
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.05)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < mapWidth; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, mapHeight);
+                ctx.stroke();
+            }
+            for (let y = 0; y < mapHeight; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(mapWidth, y);
+                ctx.stroke();
+            }
+
+            // Draw border
             ctx.fillStyle = '#444444';
             ctx.fillRect(0, 0, mapWidth, mapHeight);
-            ctx.fillStyle = '#2a3a4a';
+            ctx.fillStyle = '#1a2a3a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
-            // Draw obstacles - random generated by server
+            // Draw obstacles with glow
             ctx.fillStyle = '#555555';
+            ctx.shadowColor = '#555555';
+            ctx.shadowBlur = 5;
             if (gameState.obstacles && Array.isArray(gameState.obstacles)) {
-                gameState.obstacles.forEach(obs => {
-                    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                gameState.obstacles.forEach(obstacle => {
+                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
                 });
             }
+            ctx.shadowBlur = 0;
 
             // Draw projectiles
             if (gameState.projectiles && gameState.projectiles.length > 0) {
@@ -404,7 +667,7 @@
                 });
             }
 
-            // Draw explosions
+            // Draw explosions with enhanced effect
             explosions = explosions.filter(exp => {
                 if (exp.age >= exp.maxAge) return false;
                 
@@ -435,7 +698,7 @@
                 return true;
             });
 
-            // Draw players (only alive ones)
+            // Draw players
             if (gameState.players) {
                 gameState.players.forEach(player => {
                     if (player.alive) {
@@ -484,19 +747,17 @@
                 document.getElementById('ammoFill').style.width = (player.ammo / 10 * 100) + '%';
             }
 
-            // Hitta vilka lag som är med
+            // Dynamic team scores
             const teamsInGame = new Set();
             gameState.players.forEach(p => {
                 teamsInGame.add(p.teamIndex);
             });
 
-            // Generera score-rutor bara för lag som är med
-            const teamNames = ['BLÅ', 'RÖD', 'GUL', 'GRÖN'];
             const teamClasses = ['team-blue', 'team-red', 'team-yellow', 'team-green'];
             
             let scoresHTML = '';
-            teamsInGame.forEach(teamIndex => {
-                scoresHTML += `<div class="team-score ${teamClasses[teamIndex]}">${teamNames[teamIndex]}: <span>${gameState.scores[teamIndex]}</span></div>`;
+            Array.from(teamsInGame).sort().forEach(teamIndex => {
+                scoresHTML += `<div class="team-score ${teamClasses[teamIndex]}">${teamNames[teamIndex]}: <strong>${gameState.scores[teamIndex]}</strong></div>`;
             });
             
             document.getElementById('teamScoresContainer').innerHTML = scoresHTML;
