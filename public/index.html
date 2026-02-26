@@ -288,6 +288,8 @@
                         canvas.width = document.getElementById('gameArea').clientWidth;
                         canvas.height = document.getElementById('gameArea').clientHeight;
                     }, 50);
+                } else {
+                    alert('Kunde inte gå med i spelet: ' + (result.error || 'Okänt fel'));
                 }
             });
         }
