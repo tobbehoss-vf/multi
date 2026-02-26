@@ -407,11 +407,18 @@ io.on('connection', (socket) => {
 
     callback({ success: true, playerId: socket.id });
 
-    // Starta spelet automatiskt om vi har minst en spelare
-    if (game.canStartGame() && game.state === 'lobby') {
+    // NOT auto-starting anymore - require manual start
+  });
+
+  socket.on('startGame', (gameId, callback) => {
+    const game = games[gameId];
+    if (game && game.state === 'lobby') {
       game.startGame();
       io.to(gameId).emit('gameStateUpdate', game.getGameState());
       io.to(gameId).emit('gameStarted');
+      callback({ success: true });
+    } else {
+      callback({ success: false, error: 'Cannot start game' });
     }
   });
 
