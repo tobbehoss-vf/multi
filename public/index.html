@@ -46,13 +46,6 @@
         .team-yellow { border-color: #ffff00; color: #ffff00; }
         .team-green { border-color: #00ff88; color: #00ff88; }
         
-        #playerList { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; max-height: 120px; overflow-y: auto; max-width: 400px; }
-        #playerList h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
-        .player-entry { display: flex; gap: 15px; align-items: center; margin-bottom: 6px; padding: 4px; background: rgba(0, 255, 136, 0.05); border-left: 2px solid; border-radius: 2px; font-size: 0.85em; }
-        .player-name { color: #00ffff; font-weight: bold; min-width: 100px; }
-        .player-health { color: #ff3333; min-width: 50px; }
-        .player-ammo { color: #00ffff; min-width: 40px; }
-        
         #gameArea { flex: 1; width: 100%; display: block; position: relative; overflow: hidden; }
         #gameCanvas { display: block; width: 100%; height: 100%; }
         
@@ -103,15 +96,7 @@
                 </div>
 
                 <div id="teamScores">
-                    <div class="team-score team-blue">BLÅ: <span id="scoreBlue">0</span></div>
-                    <div class="team-score team-red">RÖD: <span id="scoreRed">0</span></div>
-                    <div class="team-score team-yellow">GUL: <span id="scoreYellow">0</span></div>
-                    <div class="team-score team-green">GRÖN: <span id="scoreGreen">0</span></div>
-                </div>
-
-                <div id="playerList">
-                    <h3>Spelare</h3>
-                    <div id="playerListContent"></div>
+                    <div id="teamScoresContainer"></div>
                 </div>
             </div>
 
@@ -472,19 +457,22 @@
                 document.getElementById('ammoFill').style.width = (player.ammo / 10 * 100) + '%';
             }
 
-            document.getElementById('scoreBlue').textContent = gameState.scores[0];
-            document.getElementById('scoreRed').textContent = gameState.scores[1];
-            document.getElementById('scoreYellow').textContent = gameState.scores[2];
-            document.getElementById('scoreGreen').textContent = gameState.scores[3];
+            // Hitta vilka lag som är med
+            const teamsInGame = new Set();
+            gameState.players.forEach(p => {
+                teamsInGame.add(p.teamIndex);
+            });
 
-            const listContent = document.getElementById('playerListContent');
-            listContent.innerHTML = gameState.players
-                .map(p => `<div class="player-entry">
-                    <span class="player-name" style="color: ${teamColors[p.teamIndex]}">${p.name}</span>
-                    <span class="player-health">HP:${p.hp}</span>
-                    <span class="player-ammo">A:${p.ammo}</span>
-                </div>`)
-                .join('');
+            // Generera score-rutor bara för lag som är med
+            const teamNames = ['BLÅ', 'RÖD', 'GUL', 'GRÖN'];
+            const teamClasses = ['team-blue', 'team-red', 'team-yellow', 'team-green'];
+            
+            let scoresHTML = '';
+            teamsInGame.forEach(teamIndex => {
+                scoresHTML += `<div class="team-score ${teamClasses[teamIndex]}">${teamNames[teamIndex]}: <span>${gameState.scores[teamIndex]}</span></div>`;
+            });
+            
+            document.getElementById('teamScoresContainer').innerHTML = scoresHTML;
         }
 
         initSocket();
