@@ -151,11 +151,31 @@ class Game {
     return false;
   }
 
-  projectileHitObstacle(x, y) {
-    // Same check for projectiles
+  projectileHitObstacle(x, y, vx, vy, prevX, prevY) {
+    // Check om projektilen passerar genom en vägg (linjekollision)
+    // Checka både nuvarande position och förra positionen
     for (let obs of this.obstacles) {
+      // Check nuvarande position
       if (x >= obs.x && x <= obs.x + obs.w &&
           y >= obs.y && y <= obs.y + obs.h) {
+        return true;
+      }
+      
+      // Check förra positionen också (för snabba projektiler)
+      if (prevX >= obs.x && prevX <= obs.x + obs.w &&
+          prevY >= obs.y && prevY <= obs.y + obs.h) {
+        return true;
+      }
+      
+      // Check om linjen mellan gamla och nya position intersecterar väggen
+      // Simple bounding box check för vägen projektilen tog
+      const minX = Math.min(prevX, x) - 1;
+      const maxX = Math.max(prevX, x) + 1;
+      const minY = Math.min(prevY, y) - 1;
+      const maxY = Math.max(prevY, y) + 1;
+      
+      if (minX <= obs.x + obs.w && maxX >= obs.x &&
+          minY <= obs.y + obs.h && maxY >= obs.y) {
         return true;
       }
     }
@@ -215,6 +235,11 @@ class Game {
     
     for (let i = 0; i < this.projectiles.length; i++) {
       const proj = this.projectiles[i];
+      
+      // Spara gamla positionen före rörelse
+      const prevX = proj.x;
+      const prevY = proj.y;
+      
       proj.x += proj.vx;
       proj.y += proj.vy;
       proj.age++;
@@ -225,7 +250,7 @@ class Game {
       }
 
       // Check if projectile hit an obstacle
-      if (this.projectileHitObstacle(proj.x, proj.y)) {
+      if (this.projectileHitObstacle(proj.x, proj.y, proj.vx, proj.vy, prevX, prevY)) {
         continue; // Remove projectile
       }
 
