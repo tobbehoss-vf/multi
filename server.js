@@ -101,7 +101,9 @@ class Game {
     }
     return false;
   }
-    return Object.keys(this.players).length >= 1; // Start with just 1 player for testing
+
+  canStartGame() {
+    return Object.keys(this.players).length >= 1;
   }
 
   startGame() {
