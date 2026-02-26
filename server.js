@@ -233,6 +233,9 @@ class Game {
       for (let playerId in this.players) {
         const target = this.players[playerId];
         if (target.id === proj.playerId || !target.alive) continue;
+        
+        // Tanks i samma lag kan inte skada varandra
+        if (target.teamIndex === proj.teamIndex) continue;
 
         const dx = target.x - proj.x;
         const dy = target.y - proj.y;
