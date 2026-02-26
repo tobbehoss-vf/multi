@@ -68,59 +68,59 @@ class Game {
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
     
-    // Define obstacles - labyrint based on uploaded image
+    // Define obstacles - improved labyrint design
     this.obstacles = [
-      // Top-left section
-      { x: 100, y: 100, w: 100, h: 10 },
-      { x: 100, y: 100, w: 10, h: 150 },
-      { x: 100, y: 240, w: 100, h: 10 },
-      { x: 190, y: 100, w: 10, h: 140 },
+      // Outer frame (kanter)
+      // Inte för nära eftersom spawn-zoner är på utsidan
       
-      // Top-middle section
-      { x: 250, y: 100, w: 100, h: 10 },
-      { x: 250, y: 100, w: 10, h: 150 },
-      { x: 340, y: 100, w: 10, h: 140 },
+      // Top section - simple pattern
+      { x: 200, y: 120, w: 10, h: 140 },
+      { x: 350, y: 120, w: 10, h: 140 },
+      { x: 500, y: 120, w: 10, h: 140 },
+      { x: 650, y: 120, w: 10, h: 140 },
+      { x: 800, y: 120, w: 10, h: 140 },
+      { x: 950, y: 120, w: 10, h: 140 },
+      { x: 1100, y: 120, w: 10, h: 140 },
+      { x: 1250, y: 120, w: 10, h: 140 },
       
-      // Top-right section
-      { x: 400, y: 100, w: 250, h: 10 },
-      { x: 640, y: 100, w: 10, h: 200 },
-      { x: 400, y: 190, w: 50, h: 10 },
-      { x: 480, y: 140, w: 10, h: 150 },
-      { x: 550, y: 140, w: 10, h: 150 },
+      // Horizontal connectors top
+      { x: 150, y: 200, w: 100, h: 10 },
+      { x: 300, y: 200, w: 100, h: 10 },
+      { x: 450, y: 200, w: 100, h: 10 },
+      { x: 600, y: 200, w: 100, h: 10 },
+      { x: 750, y: 200, w: 100, h: 10 },
+      { x: 900, y: 200, w: 100, h: 10 },
+      { x: 1050, y: 200, w: 100, h: 10 },
+      { x: 1200, y: 200, w: 100, h: 10 },
       
-      // Middle-left section
-      { x: 100, y: 320, w: 100, h: 10 },
-      { x: 190, y: 280, w: 10, h: 140 },
-      { x: 100, y: 420, w: 100, h: 10 },
+      // Middle section - staggered pattern
+      { x: 180, y: 320, w: 10, h: 140 },
+      { x: 380, y: 320, w: 10, h: 140 },
+      { x: 580, y: 320, w: 10, h: 140 },
+      { x: 780, y: 320, w: 10, h: 140 },
+      { x: 980, y: 320, w: 10, h: 140 },
+      { x: 1180, y: 320, w: 10, h: 140 },
       
-      // Middle-center section
-      { x: 250, y: 310, w: 10, h: 170 },
-      { x: 250, y: 310, w: 100, h: 10 },
-      { x: 340, y: 250, w: 10, h: 170 },
-      { x: 250, y: 480, w: 90, h: 10 },
+      // Horizontal connectors middle
+      { x: 150, y: 380, w: 100, h: 10 },
+      { x: 330, y: 380, w: 100, h: 10 },
+      { x: 530, y: 380, w: 100, h: 10 },
+      { x: 730, y: 380, w: 100, h: 10 },
+      { x: 930, y: 380, w: 100, h: 10 },
+      { x: 1130, y: 380, w: 100, h: 10 },
       
-      // Center maze
-      { x: 450, y: 250, w: 10, h: 180 },
-      { x: 450, y: 250, w: 100, h: 10 },
-      { x: 540, y: 250, w: 10, h: 100 },
-      { x: 520, y: 330, w: 50, h: 10 },
-      { x: 550, y: 310, w: 10, h: 50 },
+      // Bottom section - vertical walls
+      { x: 200, y: 440, w: 10, h: 100 },
+      { x: 350, y: 440, w: 10, h: 100 },
+      { x: 500, y: 440, w: 10, h: 100 },
+      { x: 650, y: 440, w: 10, h: 100 },
+      { x: 800, y: 440, w: 10, h: 100 },
+      { x: 950, y: 440, w: 10, h: 100 },
+      { x: 1100, y: 440, w: 10, h: 100 },
+      { x: 1250, y: 440, w: 10, h: 100 },
       
-      // Right section
-      { x: 750, y: 100, w: 10, h: 400 },
-      { x: 750, y: 240, w: 100, h: 10 },
-      { x: 750, y: 350, w: 100, h: 10 },
-      { x: 830, y: 140, w: 10, h: 220 },
-      { x: 830, y: 360, w: 10, h: 140 },
-      
-      // Bottom section
-      { x: 200, y: 500, w: 10, h: 80 },
-      { x: 350, y: 520, w: 200, h: 10 },
-      { x: 450, y: 450, w: 10, h: 80 },
-      { x: 600, y: 500, w: 10, h: 80 },
-      
-      // Center obstacle
-      { x: 600, y: 300, w: 50, h: 50 }
+      // Center obstacle for strategy
+      { x: 680, y: 280, w: 40, h: 40 }
     ];
   }
 
@@ -172,7 +172,7 @@ class Game {
   spawnAllPlayers() {
     for (let playerId in this.players) {
       const player = this.players[playerId];
-      const spawn = this.getSpawnPoint(player.teamIndex);
+      const spawn = this.getRandomSpawnPoint();
       player.x = spawn.x;
       player.y = spawn.y;
       player.angle = spawn.angle || 0;
@@ -181,37 +181,24 @@ class Game {
     }
   }
 
-  getSpawnPoint(teamIndex) {
-    // Lag-baserade spawn-zoner
-    const spawnZones = {
-      0: [ // Blå - vänster sida
-        { x: 80, y: 100, angle: 0 },
-        { x: 80, y: 200, angle: 0 },
-        { x: 80, y: 500, angle: 0 },
-        { x: 80, y: 400, angle: 0 }
-      ],
-      1: [ // Röd - höger sida
-        { x: 1320, y: 100, angle: Math.PI },
-        { x: 1320, y: 200, angle: Math.PI },
-        { x: 1320, y: 500, angle: Math.PI },
-        { x: 1320, y: 400, angle: Math.PI }
-      ],
-      2: [ // Gul - topp
-        { x: 300, y: 80, angle: Math.PI / 2 },
-        { x: 700, y: 80, angle: Math.PI / 2 },
-        { x: 1100, y: 80, angle: Math.PI / 2 },
-        { x: 500, y: 80, angle: Math.PI / 2 }
-      ],
-      3: [ // Grön - botten
-        { x: 300, y: 520, angle: -Math.PI / 2 },
-        { x: 700, y: 520, angle: -Math.PI / 2 },
-        { x: 1100, y: 520, angle: -Math.PI / 2 },
-        { x: 500, y: 520, angle: -Math.PI / 2 }
-      ]
-    };
+  getRandomSpawnPoint() {
+    // Try to find a random spawn point that doesn't collide with obstacles
+    let attempts = 0;
+    let x, y;
     
-    const zone = spawnZones[teamIndex] || spawnZones[0];
-    return zone[Math.floor(Math.random() * zone.length)];
+    while (attempts < 50) {
+      x = Math.random() * (1400 - 100) + 50;  // Random between 50-1350
+      y = Math.random() * (600 - 100) + 50;   // Random between 50-550
+      
+      // Check if this position is valid (not in obstacle)
+      if (!this.isColliding(x, y)) {
+        return { x, y, angle: 0 };
+      }
+      attempts++;
+    }
+    
+    // Fallback - return a safe zone
+    return { x: 100, y: 100, angle: 0 };
   }
 
   update() {
@@ -261,7 +248,7 @@ class Game {
             const shooter = this.players[proj.playerId];
             if (shooter) {
               shooter.kills++;
-              this.scores[proj.teamIndex] += 20;
+              this.scores[proj.teamIndex] += 1; // 1 poäng för kill
             }
           } else {
             this.scores[proj.teamIndex] += 1;
@@ -294,7 +281,7 @@ class Game {
         if (Date.now() - player.deathTime > 2000) {
           player.lives--;
           if (player.lives >= 0) {
-            const spawn = this.getSpawnPoint(player.teamIndex);
+            const spawn = this.getRandomSpawnPoint();
             player.x = spawn.x;
             player.y = spawn.y;
             player.hp = player.maxHp;
@@ -490,8 +477,8 @@ io.on('connection', (socket) => {
     }
 
     const projectile = new Projectile(
-      player.x,
-      player.y,
+      player.x + Math.cos(player.angle) * 40, // Offset framför tanken
+      player.y + Math.sin(player.angle) * 40,
       player.angle,
       player.id,
       player.name,
@@ -526,18 +513,6 @@ io.on('connection', (socket) => {
         player.isReloading = false;
         io.to(gameId).emit('gameStateUpdate', games[gameId].getGameState());
       }, 1000);
-    }
-  });
-
-  socket.on('startGame', (gameId, callback) => {
-    const game = games[gameId];
-    if (game && game.canStartGame()) {
-      game.startGame();
-      io.to(gameId).emit('gameStateUpdate', game.getGameState());
-      io.to(gameId).emit('gameStarted');
-      callback({ success: true });
-    } else {
-      callback({ success: false });
     }
   });
 
