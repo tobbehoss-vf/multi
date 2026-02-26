@@ -117,7 +117,7 @@
 
             <div id="gameArea">
                 <canvas id="gameCanvas"></canvas>
-                <button onclick="startGame()" class="leave-btn" style="right: 150px;">Starta spel</button>
+                <button id="startGameBtn" onclick="startGame()" class="leave-btn" style="right: 150px;">Starta spel</button>
                 <button onclick="leaveGame()" class="leave-btn">Lämna</button>
             </div>
         </div>
@@ -245,11 +245,13 @@
 
             socket.emit('getGames', games => {
                 let gameId = null;
+                let foundExistingGame = false;
                 
                 // Hitta ett spel som inte är fullt
                 for (let game of games) {
                     if (game.playerCount < 8) {
                         gameId = game.id;
+                        foundExistingGame = true;
                         break;
                     }
                 }
@@ -257,15 +259,15 @@
                 // Om inget spel finns, skapa ett nytt
                 if (!gameId) {
                     socket.emit('createGame', 0, id => {
-                        joinGameImpl(id, name, teamIndex);
+                        joinGameImpl(id, name, teamIndex, true); // true = är skapare
                     });
                 } else {
-                    joinGameImpl(gameId, name, teamIndex);
+                    joinGameImpl(gameId, name, teamIndex, false); // false = är inte skapare
                 }
             });
         }
 
-        function joinGameImpl(gameId, name, teamIndex) {
+        function joinGameImpl(gameId, name, teamIndex, isCreator) {
             socket.emit('joinGame', gameId, {
                 name: name,
                 teamIndex: teamIndex,
@@ -284,6 +286,14 @@
                     
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
+                    
+                    // Visa/dölj startGame-knapp baserat på om du är skapare
+                    const startBtn = document.getElementById('startGameBtn');
+                    if (isCreator) {
+                        startBtn.style.display = 'block';
+                    } else {
+                        startBtn.style.display = 'none';
+                    }
                     
                     setTimeout(() => {
                         canvas.width = document.getElementById('gameArea').clientWidth;
