@@ -44,8 +44,8 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 20; // Sänkt från 15
-    this.vy = Math.sin(angle) * 20;
+    this.vx = Math.cos(angle) * 30; // Sänkt från 15
+    this.vy = Math.sin(angle) * 30;
     this.playerId = playerId;
     this.playerName = playerName;
     this.teamIndex = teamIndex;
