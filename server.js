@@ -68,47 +68,59 @@ class Game {
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
     
-    // Define obstacles - labyrint design with thin walls and wider paths
+    // Define obstacles - labyrint based on uploaded image
     this.obstacles = [
-      // Vertical walls (20 breda för tunnare)
-      { x: 220, y: 100, w: 20, h: 180 },
-      { x: 420, y: 100, w: 20, h: 180 },
-      { x: 620, y: 100, w: 20, h: 180 },
-      { x: 820, y: 100, w: 20, h: 180 },
-      { x: 1020, y: 100, w: 20, h: 180 },
-      { x: 1220, y: 100, w: 20, h: 180 },
+      // Top-left section
+      { x: 100, y: 100, w: 100, h: 10 },
+      { x: 100, y: 100, w: 10, h: 150 },
+      { x: 100, y: 240, w: 100, h: 10 },
+      { x: 190, y: 100, w: 10, h: 140 },
       
-      // Horizontal walls top section
-      { x: 160, y: 170, w: 120, h: 20 },
-      { x: 460, y: 170, w: 120, h: 20 },
-      { x: 760, y: 170, w: 120, h: 20 },
-      { x: 1060, y: 170, w: 120, h: 20 },
+      // Top-middle section
+      { x: 250, y: 100, w: 100, h: 10 },
+      { x: 250, y: 100, w: 10, h: 150 },
+      { x: 340, y: 100, w: 10, h: 140 },
       
-      // Middle labyrinth section
-      { x: 320, y: 310, w: 20, h: 180 },
-      { x: 520, y: 310, w: 20, h: 180 },
-      { x: 720, y: 310, w: 20, h: 180 },
-      { x: 920, y: 310, w: 20, h: 180 },
-      { x: 1120, y: 310, w: 20, h: 180 },
+      // Top-right section
+      { x: 400, y: 100, w: 250, h: 10 },
+      { x: 640, y: 100, w: 10, h: 200 },
+      { x: 400, y: 190, w: 50, h: 10 },
+      { x: 480, y: 140, w: 10, h: 150 },
+      { x: 550, y: 140, w: 10, h: 150 },
       
-      // Horizontal walls middle section
-      { x: 160, y: 370, w: 120, h: 20 },
-      { x: 460, y: 400, w: 120, h: 20 },
-      { x: 760, y: 370, w: 120, h: 20 },
-      { x: 1060, y: 400, w: 120, h: 20 },
+      // Middle-left section
+      { x: 100, y: 320, w: 100, h: 10 },
+      { x: 190, y: 280, w: 10, h: 140 },
+      { x: 100, y: 420, w: 100, h: 10 },
       
-      // Bottom section vertical
-      { x: 220, y: 430, w: 20, h: 140 },
-      { x: 420, y: 430, w: 20, h: 140 },
-      { x: 620, y: 430, w: 20, h: 140 },
-      { x: 820, y: 430, w: 20, h: 140 },
-      { x: 1020, y: 430, w: 20, h: 140 },
-      { x: 1220, y: 430, w: 20, h: 140 },
+      // Middle-center section
+      { x: 250, y: 310, w: 10, h: 170 },
+      { x: 250, y: 310, w: 100, h: 10 },
+      { x: 340, y: 250, w: 10, h: 170 },
+      { x: 250, y: 480, w: 90, h: 10 },
       
-      // Center maze (thinner)
-      { x: 670, y: 270, w: 20, h: 80 },
-      { x: 740, y: 270, w: 20, h: 80 },
-      { x: 705, y: 300, w: 50, h: 20 }
+      // Center maze
+      { x: 450, y: 250, w: 10, h: 180 },
+      { x: 450, y: 250, w: 100, h: 10 },
+      { x: 540, y: 250, w: 10, h: 100 },
+      { x: 520, y: 330, w: 50, h: 10 },
+      { x: 550, y: 310, w: 10, h: 50 },
+      
+      // Right section
+      { x: 750, y: 100, w: 10, h: 400 },
+      { x: 750, y: 240, w: 100, h: 10 },
+      { x: 750, y: 350, w: 100, h: 10 },
+      { x: 830, y: 140, w: 10, h: 220 },
+      { x: 830, y: 360, w: 10, h: 140 },
+      
+      // Bottom section
+      { x: 200, y: 500, w: 10, h: 80 },
+      { x: 350, y: 520, w: 200, h: 10 },
+      { x: 450, y: 450, w: 10, h: 80 },
+      { x: 600, y: 500, w: 10, h: 80 },
+      
+      // Center obstacle
+      { x: 600, y: 300, w: 50, h: 50 }
     ];
   }
 
