@@ -67,6 +67,7 @@ class Game {
     this.scores = [0, 0, 0, 0];
     this.gameStartTime = null;
     this.mapIndex = mapId || 0;
+    this.hitThisFrame = false; // Track hits this frame
     
     // Generate random obstacles each game
     this.generateRandomObstacles();
@@ -244,7 +245,8 @@ class Game {
         if (distSq < 900) { // 30*30 = 900 (utan sqrt)
           // Hit!
           target.hp -= proj.damage;
-
+          this.hitThisFrame = true; // Markera att vi hade en hit denna frame
+          
           if (target.hp <= 0) {
             target.hp = 0;
             target.alive = false;
@@ -571,6 +573,13 @@ setInterval(() => {
       //console.log(`[GameLoop] Game ${gameId}: state=${game.state}, players=${game.players.length}, projectiles=${game.projectiles.length}`);
     }
     game.update();
+    
+    // Emit hit sound event if there was a hit
+    if (game.hitThisFrame) {
+      io.to(gameId).emit('hitEvent');
+      game.hitThisFrame = false; // Reset för nästa frame
+    }
+    
     const state = game.getGameState();
     if (state.projectiles.length > 0) {
       //console.log(`[Update] Game ${gameId}: ${state.projectiles.length} projectiles after update`, state.projectiles.map(p => `(${p.x.toFixed(0)}, ${p.y.toFixed(0)})`));
