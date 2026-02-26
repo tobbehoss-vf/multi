@@ -29,7 +29,7 @@ class Player {
     this.angle = 0;
     this.hp = 100;
     this.maxHp = 100;
-    this.lives = 3;
+    this.lives = 5;
     this.kills = 0;
     this.deaths = 0;
     this.ammo = 10;
@@ -444,7 +444,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (game.teamCounts[playerData.teamIndex] >= 2) {
+    if (game.teamCounts[playerData.teamIndex] >= 3) {
       callback({ success: false, error: 'Team is full' });
       return;
     }
