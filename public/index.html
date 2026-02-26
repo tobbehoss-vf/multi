@@ -117,6 +117,7 @@
 
             <div id="gameArea">
                 <canvas id="gameCanvas"></canvas>
+                <button onclick="startGame()" class="leave-btn" style="right: 150px;">Starta spel</button>
                 <button onclick="leaveGame()" class="leave-btn">Lämna</button>
             </div>
         </div>
@@ -311,6 +312,15 @@
                 socket.disconnect();
                 setTimeout(() => socket.connect(), 500);
             }
+        }
+
+        function startGame() {
+            if (!socket || !currentGameId) return;
+            socket.emit('startGame', currentGameId, (result) => {
+                if (!result.success) {
+                    alert('Kunde inte starta spelet: ' + (result.error || 'Okänt fel'));
+                }
+            });
         }
 
         function drawTank(ctx, x, y, angle, colorIndex) {
