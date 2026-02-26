@@ -44,8 +44,8 @@ class Projectile {
   constructor(x, y, angle, playerId, playerName, teamIndex) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 30; // Sänkt från 15
-    this.vy = Math.sin(angle) * 30;
+    this.vx = Math.cos(angle) * 8; // Sänkt från 15
+    this.vy = Math.sin(angle) * 8;
     this.playerId = playerId;
     this.playerName = playerName;
     this.teamIndex = teamIndex;
@@ -290,6 +290,28 @@ io.on('connection', (socket) => {
     callback(gameId);
   });
 
+  socket.on('reconnectPlayer', (data, callback) => {
+    const { gameId, playerId, name, teamIndex } = data;
+    const game = games[gameId];
+
+    if (game && game.players[playerId]) {
+      // Spelet finns och spelaren finns - reconnect!
+      const player = game.players[playerId];
+      
+      // Uppdatera socket ID för spelaren
+      if (players[playerId]) {
+        delete players[playerId];
+      }
+      players[socket.id] = { gameId, player, lastActivity: Date.now() };
+      
+      socket.join(gameId);
+      io.to(gameId).emit('gameStateUpdate', game.getGameState());
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
   socket.on('joinGame', (gameId, playerData, callback) => {
     if (!games[gameId]) {
       callback({ success: false, error: 'Game not found' });
@@ -309,7 +331,7 @@ io.on('connection', (socket) => {
 
     const player = new Player(socket.id, playerData.name, playerData.teamIndex, playerData.tankType);
     game.addPlayer(player);
-    players[socket.id] = { gameId, player };
+    players[socket.id] = { gameId, player, lastActivity: Date.now() };
 
     socket.join(gameId);
     io.to(gameId).emit('gameStateUpdate', game.getGameState());
@@ -327,6 +349,7 @@ io.on('connection', (socket) => {
 
   socket.on('movePlayer', (direction, gameId) => {
     if (!players[socket.id]) return;
+    players[socket.id].lastActivity = Date.now();
     const { gameId: pGameId, player } = players[socket.id];
     if (pGameId !== gameId) return;
     const game = games[gameId];
@@ -381,6 +404,7 @@ io.on('connection', (socket) => {
 
   socket.on('shoot', (gameId) => {
     if (!players[socket.id]) return;
+    players[socket.id].lastActivity = Date.now();
     const { gameId: pGameId, player } = players[socket.id];
     if (pGameId !== gameId) return;
     if (!player.alive || player.isReloading || player.ammo <= 0) return;
@@ -415,6 +439,7 @@ io.on('connection', (socket) => {
 
   socket.on('reload', (gameId) => {
     if (!players[socket.id]) return;
+    players[socket.id].lastActivity = Date.now();
     const { gameId: pGameId, player } = players[socket.id];
     if (pGameId !== gameId) return;
 
@@ -448,12 +473,38 @@ io.on('connection', (socket) => {
       if (game) {
         game.removePlayer(socket.id);
         io.to(gameId).emit('gameStateUpdate', game.getGameState());
+        
+        // Ta bort spelet om det är tomt
+        if (Object.keys(game.players).length === 0) {
+          delete games[gameId];
+          //console.log('Game deleted - no players left:', gameId);
+        }
       }
       delete players[socket.id];
     }
-    //console.log('Player disconnected:', socket.id);
   });
 });
+
+// Clean up inactive players every 30 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (let playerId in players) {
+    const playerData = players[playerId];
+    if (playerData && playerData.lastActivity && (now - playerData.lastActivity) > 30000) {
+      const { gameId, player } = playerData;
+      const game = games[gameId];
+      if (game) {
+        game.removePlayer(playerId);
+        io.to(gameId).emit('gameStateUpdate', game.getGameState());
+        
+        if (Object.keys(game.players).length === 0) {
+          delete games[gameId];
+        }
+      }
+      delete players[playerId];
+    }
+  }
+}, 30000);
 
 // Game loop
 let loopCount = 0;
