@@ -6,43 +6,39 @@
     <title>Tank Battle</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; background: #0a0a15; color: #fff; overflow: hidden; height: 100vh; }
-        #mainContainer { display: flex; height: 100vh; }
-        #lobbyScreen { display: flex; width: 100%; padding: 40px; justify-content: center; align-items: center; background: linear-gradient(135deg, #0f0f1e 0%, #1a1a3e 100%); }
+        html, body { width: 100%; height: 100%; }
+        body { font-family: 'Courier New', monospace; background: #0a0a15; color: #fff; overflow: hidden; }
+        
+        #mainContainer { display: flex; width: 100%; height: 100%; }
+        
+        #lobbyScreen { display: flex; width: 100%; height: 100%; padding: 40px; justify-content: center; align-items: center; background: linear-gradient(135deg, #0f0f1e 0%, #1a1a3e 100%); }
         #lobby { text-align: center; }
         .lobby-header h1 { font-size: 3em; color: #00ff88; margin-bottom: 30px; }
-        .lobby-content { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; max-width: 1000px; }
-        .section { background: rgba(0, 0, 0, 0.3); border: 2px solid #00ff88; padding: 20px; border-radius: 8px; }
-        .section h2 { color: #00ff88; margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; text-align: left; }
-        .form-group label { display: block; color: #00ffff; margin-bottom: 5px; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; background: rgba(0, 255, 255, 0.1); border: 1px solid #0064ff; color: #fff; border-radius: 4px; font-family: 'Courier New', monospace; }
-        button { background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%); color: #000; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; }
+        .lobby-content { background: rgba(0, 0, 0, 0.3); border: 2px solid #00ff88; padding: 40px; border-radius: 8px; max-width: 400px; }
+        .lobby-content h2 { color: #00ff88; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; color: #00ffff; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; background: rgba(0, 255, 255, 0.1); border: 1px solid #0064ff; color: #fff; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 1em; }
+        button { background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%); color: #000; border: none; padding: 12px 30px; border-radius: 4px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; font-size: 1em; }
         button:hover { transform: scale(1.05); }
         
-        #gameContainer { display: none; width: 100%; height: 100vh; flex-direction: column; }
+        #gameContainer { display: none; width: 100%; height: 100%; flex-direction: column; }
         
-        /* TOP HUD - Separate from game area */
         #topHUD { background: rgba(0, 0, 0, 0.8); border-bottom: 2px solid #00ff88; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-shrink: 0; height: 140px; }
         
-        /* Player info box (left) */
         #playerInfoBox { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; }
         #playerInfoBox h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
         #playerStats { display: flex; gap: 20px; align-items: center; }
         
         .stat-group { display: flex; flex-direction: column; gap: 3px; }
         .stat-group .label { color: #00ffff; font-size: 0.8em; }
-        .stat-group .value { color: #fff; font-size: 1.1em; font-weight: bold; }
         
-        /* Health bar */
         .health-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #ff3333; border-radius: 2px; overflow: hidden; }
         .health-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
         
-        /* Ammo bar */
         .ammo-bar { width: 100px; height: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffff; border-radius: 2px; overflow: hidden; }
         .ammo-fill { height: 100%; background: #00ff88; transition: width 0.1s; }
         
-        /* Team scores (center) */
         #teamScores { display: flex; gap: 15px; }
         .team-score { padding: 8px 12px; border: 2px solid; border-radius: 4px; background: rgba(0, 0, 0, 0.5); font-weight: bold; min-width: 120px; text-align: center; }
         .team-blue { border-color: #0099ff; color: #0099ff; }
@@ -50,7 +46,6 @@
         .team-yellow { border-color: #ffff00; color: #ffff00; }
         .team-green { border-color: #00ff88; color: #00ff88; }
         
-        /* Player list (right) */
         #playerList { background: rgba(0, 0, 0, 0.5); border: 2px solid #00ff88; border-radius: 4px; padding: 10px 15px; max-height: 120px; overflow-y: auto; max-width: 400px; }
         #playerList h3 { color: #00ff88; margin-bottom: 8px; font-size: 0.9em; }
         .player-entry { display: flex; gap: 15px; align-items: center; margin-bottom: 6px; padding: 4px; background: rgba(0, 255, 136, 0.05); border-left: 2px solid; border-radius: 2px; font-size: 0.85em; }
@@ -58,15 +53,10 @@
         .player-health { color: #ff3333; min-width: 50px; }
         .player-ammo { color: #00ffff; min-width: 40px; }
         
-        /* GAME AREA - Full remaining space */
-        #gameArea { flex: 1; width: 100%; display: flex; position: relative; }
-        #gameCanvas { width: 100%; height: 100%; display: block; background: #2a3a4a; }
+        #gameArea { flex: 1; width: 100%; display: block; position: relative; overflow: hidden; }
+        #gameCanvas { display: block; width: 100%; height: 100%; }
         
-        #gameList { max-height: 300px; overflow-y: auto; }
-        .game-item { background: rgba(0, 255, 136, 0.05); border-left: 3px solid #00ffff; padding: 10px; margin-bottom: 8px; cursor: pointer; border-radius: 4px; }
-        .game-item:hover { background: rgba(0, 255, 136, 0.15); }
-        
-        .leave-btn { position: absolute; bottom: 15px; right: 15px; }
+        .leave-btn { position: absolute; bottom: 15px; right: 15px; z-index: 10; }
     </style>
 </head>
 <body>
@@ -77,48 +67,27 @@
                     <h1>⚔ TANK BATTLE ⚔</h1>
                 </div>
                 <div class="lobby-content">
-                    <div class="section">
-                        <h2>Tillgängliga spel</h2>
-                        <div id="gameList"></div>
-                        <button onclick="createGame()" style="width: 100%; margin-top: 15px;">Skapa nytt spel</button>
+                    <h2>Gå med i spel</h2>
+                    <div class="form-group">
+                        <label>Spelarnamn</label>
+                        <input type="text" id="playerName" value="Player" placeholder="Ditt namn">
                     </div>
-                    <div class="section">
-                        <h2>Gå med i spel</h2>
-                        <div class="form-group">
-                            <label>Spelarnamn</label>
-                            <input type="text" id="playerName" value="Player">
-                        </div>
-                        <div class="form-group">
-                            <label>Tank</label>
-                            <select id="tankType">
-                                <option>Classic</option>
-                                <option>Heavy</option>
-                                <option>Scout</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Lag</label>
-                            <select id="teamIndex">
-                                <option value="0">Blå</option>
-                                <option value="1">Röd</option>
-                                <option value="2">Gul</option>
-                                <option value="3">Grön</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Spel</label>
-                            <select id="selectedGame"></select>
-                        </div>
-                        <button onclick="joinGame()" style="width: 100%;">Gå med</button>
+                    <div class="form-group">
+                        <label>Lag</label>
+                        <select id="teamIndex">
+                            <option value="0">🔵 Blå</option>
+                            <option value="1">🔴 Röd</option>
+                            <option value="2">🟡 Gul</option>
+                            <option value="3">🟢 Grön</option>
+                        </select>
                     </div>
+                    <button onclick="joinGame()" style="width: 100%;">Spela</button>
                 </div>
             </div>
         </div>
 
         <div id="gameContainer">
-            <!-- TOP HUD - SEPARATE SECTION -->
             <div id="topHUD">
-                <!-- Player info (left) -->
                 <div id="playerInfoBox">
                     <h3>Din Tank</h3>
                     <div id="playerStats">
@@ -133,7 +102,6 @@
                     </div>
                 </div>
 
-                <!-- Team scores (center) -->
                 <div id="teamScores">
                     <div class="team-score team-blue">BLÅ: <span id="scoreBlue">0</span></div>
                     <div class="team-score team-red">RÖD: <span id="scoreRed">0</span></div>
@@ -141,14 +109,12 @@
                     <div class="team-score team-green">GRÖN: <span id="scoreGreen">0</span></div>
                 </div>
 
-                <!-- Player list (right) -->
                 <div id="playerList">
-                    <h3>Players</h3>
+                    <h3>Spelare</h3>
                     <div id="playerListContent"></div>
                 </div>
             </div>
 
-            <!-- GAME AREA - Full remaining space -->
             <div id="gameArea">
                 <canvas id="gameCanvas"></canvas>
                 <button onclick="leaveGame()" class="leave-btn">Lämna</button>
@@ -171,77 +137,6 @@
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
 
-        // Auto-size canvas to fill container
-        function resizeCanvas() {
-            const container = document.getElementById('gameArea');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
-        // Draw tank directly with Canvas - crisp rendering
-        function drawTank(ctx, x, y, angle, colorIndex) {
-            const color = teamColors[colorIndex];
-            
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle + Math.PI / 2);
-            
-            // Disable smoothing for crisp rendering
-            ctx.imageSmoothingEnabled = false;
-            
-            // Tank body - rounded rectangle
-            const bodyWidth = 20;
-            const bodyHeight = 28;
-            const radius = 3;
-            
-            // Draw filled rounded rectangle
-            ctx.fillStyle = color;
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            
-            // Simplified: use fillRect instead of complex path for crispness
-            ctx.fillRect(-bodyWidth/2, -bodyHeight/2, bodyWidth, bodyHeight);
-            ctx.strokeRect(-bodyWidth/2, -bodyHeight/2, bodyWidth, bodyHeight);
-            
-            // Turret - circle
-            ctx.fillStyle = color;
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(0, -2, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            
-            // Barrel - rectangle pointing up
-            ctx.fillStyle = '#666666';
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.fillRect(-2, -14, 4, 12);
-            ctx.strokeRect(-2, -14, 4, 12);
-            
-            // Muzzle - small circle
-            ctx.fillStyle = '#333333';
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            
-            ctx.imageSmoothingEnabled = true;
-            ctx.restore();
-        }
-
-        const shootSound = new Audio('/smg.mp3');
-        shootSound.volume = 0.3;
-
-        function playShootSound() {
-            shootSound.currentTime = 0;
-            shootSound.play().catch(e => console.log('Sound play failed:', e));
-        }
-
         function initSocket() {
             if (typeof io === 'undefined') {
                 setTimeout(initSocket, 100);
@@ -251,7 +146,7 @@
             socket = io();
 
             socket.on('connect', () => {
-                getGames();
+                console.log('Connected');
             });
 
             socket.on('gameStateUpdate', (state) => {
@@ -260,64 +155,57 @@
             });
 
             socket.on('shotFired', () => {
-                playShootSound();
-            });
-        }
-
-        function getGames() {
-            if (!socket) return;
-            socket.emit('getGames', games => {
-                const list = document.getElementById('gameList');
-                const sel = document.getElementById('selectedGame');
-                list.innerHTML = '';
-                sel.innerHTML = '';
-
-                if (games.length === 0) {
-                    list.innerHTML = '<p style="color: #666;">Inga spel</p>';
-                } else {
-                    games.forEach(g => {
-                        const div = document.createElement('div');
-                        div.className = 'game-item';
-                        div.innerHTML = `Spel ${g.id.slice(-6)} - ${g.playerCount}/8`;
-                        list.appendChild(div);
-
-                        const opt = document.createElement('option');
-                        opt.value = g.id;
-                        opt.textContent = `Spel ${g.id.slice(-6)} (${g.playerCount}/8)`;
-                        sel.appendChild(opt);
-                    });
-                }
-
-                if (!sel.value && games.length > 0) {
-                    sel.value = games[0].id;
-                }
-            });
-        }
-
-        function createGame() {
-            if (!socket) return;
-            socket.emit('createGame', 0, id => {
-                currentGameId = id;
-                setTimeout(getGames, 100);
+                const shootSound = new Audio('/smg.mp3');
+                shootSound.volume = 0.3;
+                shootSound.play().catch(() => {});
             });
         }
 
         function joinGame() {
             if (!socket) return;
-            const gid = document.getElementById('selectedGame').value;
-            if (!gid) return;
+            const name = document.getElementById('playerName').value || 'Player';
+            const teamIndex = parseInt(document.getElementById('teamIndex').value);
 
-            socket.emit('joinGame', gid, {
-                name: document.getElementById('playerName').value || 'Player',
-                teamIndex: parseInt(document.getElementById('teamIndex').value),
-                tankType: document.getElementById('tankType').value
+            socket.emit('getGames', games => {
+                let gameId = null;
+                
+                // Hitta ett spel som inte är fullt
+                for (let game of games) {
+                    if (game.playerCount < 8) {
+                        gameId = game.id;
+                        break;
+                    }
+                }
+
+                // Om inget spel finns, skapa ett nytt
+                if (!gameId) {
+                    socket.emit('createGame', 0, id => {
+                        joinGameImpl(id, name, teamIndex);
+                    });
+                } else {
+                    joinGameImpl(gameId, name, teamIndex);
+                }
+            });
+        }
+
+        function joinGameImpl(gameId, name, teamIndex) {
+            socket.emit('joinGame', gameId, {
+                name: name,
+                teamIndex: teamIndex,
+                tankType: 'Classic'
             }, result => {
                 if (result.success) {
-                    currentGameId = gid;
+                    currentGameId = gameId;
                     currentPlayerId = result.playerId;
                     isPlaying = true;
                     document.getElementById('lobbyScreen').style.display = 'none';
                     document.getElementById('gameContainer').style.display = 'flex';
+                    
+                    // Resize canvas när spelet startar
+                    setTimeout(() => {
+                        canvas.width = document.getElementById('gameArea').clientWidth;
+                        canvas.height = document.getElementById('gameArea').clientHeight;
+                    }, 50);
                 }
             });
         }
@@ -330,14 +218,44 @@
             document.getElementById('gameContainer').style.display = 'none';
             if (socket) {
                 socket.disconnect();
-                setTimeout(() => {
-                    socket.connect();
-                    getGames();
-                }, 500);
+                setTimeout(() => socket.connect(), 500);
             }
         }
 
+        function drawTank(ctx, x, y, angle, colorIndex) {
+            const color = teamColors[colorIndex];
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle + Math.PI / 2);
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.fillRect(-10, -14, 20, 28);
+            ctx.strokeRect(-10, -14, 20, 28);
+            
+            ctx.beginPath();
+            ctx.arc(0, -2, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(-2, -14, 4, 12);
+            ctx.strokeRect(-2, -14, 4, 12);
+            
+            ctx.fillStyle = '#333333';
+            ctx.beginPath();
+            ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+
         function render() {
+            if (!canvas.width || !canvas.height) return;
+            
             if (!gameState) {
                 ctx.fillStyle = '#2a3a4a';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -350,9 +268,7 @@
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            if (gameState.players.length === 0) {
-                return;
-            }
+            if (gameState.players.length === 0) return;
 
             const scaleX = canvas.width / mapWidth;
             const scaleY = canvas.height / mapHeight;
@@ -364,25 +280,22 @@
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            // Draw map border/wall
+            // Draw map
             ctx.fillStyle = '#444444';
             ctx.fillRect(0, 0, mapWidth, mapHeight);
             ctx.fillStyle = '#2a3a4a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
-            // Draw obstacles (walls that block players and projectiles)
+            // Draw obstacles
             ctx.fillStyle = '#555555';
-            // Vertical obstacles
-            ctx.fillRect(300, 150, 60, 300);  // Left-middle vertical
-            ctx.fillRect(1040, 150, 60, 300); // Right-middle vertical
-            // Horizontal obstacles
-            ctx.fillRect(550, 200, 300, 50);  // Upper-middle horizontal
-            ctx.fillRect(550, 350, 300, 50);  // Lower-middle horizontal
-            // Center obstacle
-            ctx.fillRect(650, 250, 100, 100); // Center square
+            ctx.fillRect(300, 150, 60, 300);
+            ctx.fillRect(1040, 150, 60, 300);
+            ctx.fillRect(550, 200, 300, 50);
+            ctx.fillRect(550, 350, 300, 50);
+            ctx.fillRect(650, 250, 100, 100);
 
             // Draw projectiles
-            if (gameState && gameState.projectiles && Array.isArray(gameState.projectiles) && gameState.projectiles.length > 0) {
+            if (gameState.projectiles && gameState.projectiles.length > 0) {
                 gameState.projectiles.forEach(p => {
                     const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15);
                     grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
@@ -405,10 +318,12 @@
                 });
             }
 
-            // Draw players with names, health and ammo
-            gameState.players.forEach(player => {
-                drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
-            });
+            // Draw players
+            if (gameState.players) {
+                gameState.players.forEach(player => {
+                    drawTank(ctx, player.x, player.y, player.angle, player.teamIndex);
+                });
+            }
 
             ctx.restore();
         }
@@ -419,7 +334,6 @@
         }
         gameLoop();
 
-        // Input
         const keys = {};
         window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
         window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -431,19 +345,15 @@
                 if (keys['a']) socket.emit('movePlayer', 'left', currentGameId);
                 if (keys['d']) socket.emit('movePlayer', 'right', currentGameId);
             }
-        }, 50); // Reducerad från 30ms
+        }, 50);
 
         canvas.addEventListener('click', () => {
-            if (isPlaying && socket) {
-                socket.emit('shoot', currentGameId);
-            }
+            if (isPlaying && socket) socket.emit('shoot', currentGameId);
         });
 
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
-            if (isPlaying && socket) {
-                socket.emit('reload', currentGameId);
-            }
+            if (isPlaying && socket) socket.emit('reload', currentGameId);
         });
 
         function updateUI() {
@@ -460,7 +370,6 @@
             document.getElementById('scoreYellow').textContent = gameState.scores[2];
             document.getElementById('scoreGreen').textContent = gameState.scores[3];
 
-            // Player list
             const listContent = document.getElementById('playerListContent');
             listContent.innerHTML = gameState.players
                 .map(p => `<div class="player-entry">
@@ -472,10 +381,6 @@
         }
 
         initSocket();
-
-        setInterval(() => {
-            if (socket && !isPlaying) getGames();
-        }, 3000);
     </script>
 </body>
 </html>
