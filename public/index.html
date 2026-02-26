@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔ TANK BATTLE ⚔</title>
+    <title>⚔ ULTIMATE TANK BATTLE ⚔</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; font-family: 'Arial', sans-serif; }
-        body { background: linear-gradient(135deg, #0a0a15 0%, #1a1a3e 100%); color: #fff; overflow: hidden; }
+        body { 
+            background: linear-gradient(135deg, #0a0a15 0%, #1a1a3e 100%);
+            color: #fff; overflow: hidden; 
+        }
         
         #mainContainer { display: flex; width: 100%; height: 100%; }
         
@@ -18,137 +21,230 @@
         }
         
         #lobby { text-align: center; }
+        
         .lobby-header h1 { 
-            font-size: 4em; color: #00ff88; 
-            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            font-size: 5em; color: #00ff88; 
+            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88, 0 0 60px #00ffff;
             margin-bottom: 10px;
-            animation: glow 2s ease-in-out infinite;
+            animation: glow 2s ease-in-out infinite, bounce 3s ease-in-out infinite;
+            font-weight: bold;
+            letter-spacing: 3px;
         }
         
         @keyframes glow {
             0%, 100% { text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88; }
-            50% { text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff; }
+            50% { text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff, 0 0 100px #ff00ff; }
         }
         
-        .lobby-subtitle { font-size: 1.2em; color: #00ffff; letter-spacing: 2px; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .lobby-subtitle { 
+            font-size: 1.3em; color: #00ffff; letter-spacing: 3px;
+            animation: flicker 3s infinite;
+        }
+        
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
         
         .lobby-content { 
-            background: rgba(0, 0, 0, 0.6); border: 3px solid;
-            border-image: linear-gradient(135deg, #00ff88, #00ffff) 1;
-            padding: 50px; border-radius: 15px; max-width: 500px;
-            backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.7);
+            border: 3px solid;
+            border-image: linear-gradient(135deg, #00ff88, #00ffff, #ff00ff) 1;
+            padding: 60px;
+            border-radius: 20px;
+            max-width: 550px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.3);
         }
         
-        .lobby-content h2 { color: #00ff88; margin-bottom: 30px; font-size: 1.8em; }
+        .lobby-content h2 { 
+            color: #00ff88; margin-bottom: 35px; font-size: 2em;
+            text-shadow: 0 0 10px #00ff88;
+        }
         
-        .form-group { margin-bottom: 25px; text-align: left; }
-        .form-group label { display: block; color: #00ffff; margin-bottom: 8px; font-weight: bold; }
+        .form-group { margin-bottom: 28px; text-align: left; }
+        .form-group label { 
+            display: block; color: #00ffff; margin-bottom: 10px; 
+            font-weight: bold; font-size: 1.05em;
+        }
         .form-group input, .form-group select { 
-            width: 100%; padding: 12px; background: rgba(0, 255, 255, 0.05);
-            border: 2px solid #00ff88; color: #fff; border-radius: 8px; font-size: 1em;
+            width: 100%; padding: 14px; background: rgba(0, 255, 255, 0.08);
+            border: 2px solid #00ff88; color: #fff; border-radius: 8px; 
+            font-size: 1em; transition: all 0.3s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            background: rgba(0, 255, 255, 0.15);
+            box-shadow: 0 0 15px #00ff88;
+            border-color: #00ffff;
         }
         
         button { 
             background: linear-gradient(135deg, #00ff88 0%, #00ffff 100%);
-            color: #000; border: none; padding: 14px 40px; border-radius: 8px; 
-            font-weight: bold; cursor: pointer; font-size: 1.1em;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5); width: 100%;
+            color: #000; border: none; padding: 16px 50px; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; font-size: 1.2em;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+            width: 100%;
             transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
-        button:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 255, 136, 0.8); }
+        button:hover { 
+            transform: scale(1.08);
+            box-shadow: 0 0 40px rgba(0, 255, 136, 1);
+        }
+        button:active { transform: scale(0.95); }
         
         #gameContainer { display: none; width: 100%; height: 100%; flex-direction: column; }
         
         #topHUD { 
-            background: rgba(0, 0, 0, 0.95); border-bottom: 3px solid #00ff88;
-            padding: 15px 25px; display: flex; justify-content: space-between; 
-            align-items: center; gap: 20px; height: 120px;
+            background: linear-gradient(90deg, rgba(0, 0, 0, 1) 0%, rgba(0, 20, 40, 0.8) 100%);
+            border-bottom: 3px solid;
+            border-image: linear-gradient(90deg, #00ff88, #00ffff) 1;
+            padding: 15px 25px;
+            display: flex; justify-content: space-between; align-items: center; 
+            gap: 20px; height: 130px;
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.2);
         }
         
         #playerInfoBox { 
-            background: rgba(0, 255, 136, 0.1); border: 2px solid #00ff88;
-            border-radius: 8px; padding: 12px 20px;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 255, 255, 0.05));
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 15px 25px;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
         }
-        #playerInfoBox h3 { color: #00ff88; margin-bottom: 10px; }
         
-        #playerStats { display: flex; gap: 25px; }
-        .stat-group { display: flex; flex-direction: column; gap: 5px; }
+        #playerInfoBox h3 { 
+            color: #00ff88; margin-bottom: 12px;
+            font-size: 0.95em;
+            text-shadow: 0 0 5px #00ff88;
+        }
+        
+        #playerStats { display: flex; gap: 30px; }
+        .stat-group { display: flex; flex-direction: column; gap: 6px; }
         .stat-group .label { color: #00ffff; font-size: 0.8em; font-weight: bold; }
         
         .health-bar, .ammo-bar { 
-            width: 120px; height: 24px; background: rgba(0, 0, 0, 0.7);
-            border: 2px solid; border-radius: 4px; overflow: hidden;
+            width: 130px; height: 26px; background: rgba(0, 0, 0, 0.8);
+            border: 2px solid; border-radius: 5px; overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
         }
         .health-bar { border-color: #ff3333; }
         .ammo-bar { border-color: #00ffff; }
-        .health-fill { height: 100%; background: linear-gradient(90deg, #ff3333, #ff6666); }
-        .ammo-fill { height: 100%; background: linear-gradient(90deg, #00ffff, #00ff88); }
         
-        #teamScores { display: flex; gap: 12px; flex: 1; justify-content: center; }
-        .team-score { 
-            padding: 10px 16px; border: 2px solid; border-radius: 6px;
-            background: rgba(0, 0, 0, 0.6); font-weight: bold; min-width: 100px;
-            text-align: center; font-size: 1.1em; box-shadow: 0 0 10px;
+        .health-fill { 
+            height: 100%; 
+            background: linear-gradient(90deg, #ff3333, #ff6666, #ff9999);
+            box-shadow: 0 0 10px #ff3333;
+            transition: width 0.1s;
         }
-        .team-blue { border-color: #0099ff; color: #0099ff; }
-        .team-red { border-color: #ff3333; color: #ff3333; }
-        .team-yellow { border-color: #ffff00; color: #ffff00; }
-        .team-green { border-color: #00ff88; color: #00ff88; }
+        .ammo-fill { 
+            height: 100%; 
+            background: linear-gradient(90deg, #00ffff, #00ff88, #00ccff);
+            box-shadow: 0 0 10px #00ffff;
+            transition: width 0.1s;
+        }
+        
+        #teamScores { display: flex; gap: 15px; flex: 1; justify-content: center; }
+        .team-score { 
+            padding: 12px 18px; border: 2px solid; border-radius: 8px;
+            background: rgba(0, 0, 0, 0.7); font-weight: bold; min-width: 110px;
+            text-align: center; font-size: 1.15em; box-shadow: 0 0 15px;
+            transition: all 0.3s; cursor: default;
+        }
+        .team-blue { border-color: #0099ff; color: #0099ff; box-shadow: 0 0 15px rgba(0, 153, 255, 0.5); }
+        .team-red { border-color: #ff3333; color: #ff3333; box-shadow: 0 0 15px rgba(255, 51, 51, 0.5); }
+        .team-yellow { border-color: #ffff00; color: #ffff00; box-shadow: 0 0 15px rgba(255, 255, 0, 0.5); }
+        .team-green { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.5); }
+        
+        .team-score:hover { transform: scale(1.08); }
         
         #gameArea { flex: 1; width: 100%; display: flex; position: relative; }
-        
-        #canvasContainer { flex: 1; position: relative; }
+        #canvasContainer { flex: 1; position: relative; background: #0a1a2a; }
         #gameCanvas { display: block; width: 100%; height: 100%; }
         
         #minimapContainer {
             position: absolute; bottom: 20px; left: 20px; z-index: 10;
-            background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff88;
-            border-radius: 8px; padding: 8px;
+            background: rgba(0, 0, 0, 0.9); border: 2px solid #00ff88;
+            border-radius: 10px; padding: 10px; box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
         #minimap { border: 1px solid #00ff88; }
         
         #statsPanel {
             position: absolute; top: 20px; right: 20px; z-index: 10;
-            background: rgba(0, 0, 0, 0.9); border: 2px solid #00ff88;
-            border-radius: 8px; padding: 15px; max-height: 300px; overflow-y: auto;
-            max-width: 300px;
+            background: rgba(0, 0, 0, 0.95); border: 2px solid #00ff88;
+            border-radius: 10px; padding: 18px; max-height: 350px; overflow-y: auto;
+            max-width: 320px; box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
-        #statsPanel h3 { color: #00ff88; margin-bottom: 10px; }
-        .stat-row { color: #00ffff; margin: 5px 0; font-size: 0.9em; display: flex; justify-content: space-between; }
+        #statsPanel h3 { color: #00ff88; margin-bottom: 15px; text-shadow: 0 0 5px #00ff88; }
+        .stat-row { 
+            color: #00ffff; margin: 7px 0; font-size: 0.95em; 
+            display: flex; justify-content: space-between; padding: 5px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+        }
+        .killstreak { color: #ffaa00; font-weight: bold; }
         
         #gameInfo {
             position: absolute; top: 20px; left: 20px; z-index: 10;
-            background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff88;
-            padding: 15px 20px; border-radius: 8px; font-size: 0.9em; color: #00ffff;
+            background: rgba(0, 0, 0, 0.9); border: 2px solid #00ff88;
+            padding: 18px 24px; border-radius: 10px; font-size: 0.95em; 
+            color: #00ffff; box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
+        #gameInfo div { margin: 6px 0; }
         
         .controls {
-            position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 10;
+            position: absolute; bottom: 20px; right: 20px; display: flex; 
+            gap: 12px; z-index: 10;
         }
-        .controls button { width: auto; padding: 10px 20px; font-size: 0.9em; }
+        .controls button { width: auto; padding: 12px 25px; font-size: 0.95em; }
         #leaveBtn { background: linear-gradient(135deg, #ff3333 0%, #ff6666 100%); color: #fff; }
+        #leaveBtn:hover { box-shadow: 0 0 40px rgba(255, 51, 51, 0.8); }
         
         #winScreen {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.95); z-index: 1000;
+            background: rgba(0, 0, 0, 0.98); z-index: 10000;
             justify-content: center; align-items: center;
+            backdrop-filter: blur(10px);
         }
         .win-content {
-            text-align: center; background: rgba(0, 0, 0, 0.8); border: 3px solid #00ff88;
-            padding: 60px; border-radius: 20px; backdrop-filter: blur(10px);
+            text-align: center; background: rgba(0, 0, 0, 0.95);
+            border: 3px solid;
+            border-image: linear-gradient(135deg, #00ff88, #ffff00, #00ffff) 1;
+            padding: 80px; border-radius: 25px;
+            box-shadow: 0 0 100px rgba(0, 255, 136, 0.5);
+            animation: winPulse 0.5s ease-out;
         }
-        .win-content h1 { font-size: 4em; color: #00ff88; margin-bottom: 20px; text-shadow: 0 0 20px #00ff88; }
-        .win-content p { font-size: 1.5em; color: #00ffff; margin-bottom: 30px; }
         
-        .spawn-shield-indicator {
-            position: absolute; width: 60px; height: 60px; border: 3px solid #00ff88;
-            border-radius: 50%; pointer-events: none;
-            animation: shieldPulse 1s infinite;
+        @keyframes winPulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
-        @keyframes shieldPulse {
-            0%, 100% { box-shadow: 0 0 5px #00ff88; }
-            50% { box-shadow: 0 0 20px #00ff88; }
+        
+        .win-content h1 { 
+            font-size: 5em; color: #ffff00; 
+            margin-bottom: 20px; 
+            text-shadow: 0 0 30px #ffff00, 0 0 60px #ff00ff;
+            animation: winnerpulse 0.5s ease-out;
         }
+        
+        @keyframes winnerpulse {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .win-content p { font-size: 1.8em; color: #00ff88; margin-bottom: 40px; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 255, 136, 0.05); }
+        ::-webkit-scrollbar-thumb { background: #00ff88; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00ffff; }
     </style>
 </head>
 <body>
@@ -157,7 +253,7 @@
             <div id="lobby">
                 <div class="lobby-header">
                     <h1>⚔ TANK BATTLE ⚔</h1>
-                    <div class="lobby-subtitle">MULTIPLAYER WAR ARENA</div>
+                    <div class="lobby-subtitle">ULTIMATE WAR ARENA</div>
                 </div>
                 <div class="lobby-content">
                     <h2>ENTER THE ARENA</h2>
@@ -174,7 +270,7 @@
                             <option value="3">🟢 GREEN BATTALION</option>
                         </select>
                     </div>
-                    <button onclick="startPlaying()">DEPLOY</button>
+                    <button onclick="startPlaying()">⚡ DEPLOY ⚡</button>
                 </div>
             </div>
         </div>
@@ -203,6 +299,7 @@
                         <div>💥 LEFT CLICK to Fire</div>
                         <div>🔄 RIGHT CLICK to Reload</div>
                         <div>⌨️ WASD to Move</div>
+                        <div id="difficultyInfo" style="color: #ffaa00; margin-top: 8px;"></div>
                     </div>
                     <canvas id="gameCanvas"></canvas>
                     
@@ -227,7 +324,7 @@
         <div class="win-content">
             <h1 id="winTitle">VICTORY!</h1>
             <p id="winText">Team wins!</p>
-            <button onclick="leaveGame()" style="margin-top: 30px;">RETURN TO LOBBY</button>
+            <button onclick="leaveGame()" style="margin-top: 50px;">RETURN TO LOBBY</button>
         </div>
     </div>
 
@@ -250,21 +347,15 @@
         ctx.imageSmoothingEnabled = false;
         minimapCtx.imageSmoothingEnabled = false;
 
-        // Audio
+        // Enhanced audio
         const shootSound = new Audio('/smg.mp3');
         shootSound.volume = 0.3;
         const hitSound = new Audio('/hit.mp3');
-        hitSound.volume = 0.3;
+        hitSound.volume = 0.35;
         const collisionSound = new Audio('/hit.mp3');
-        collisionSound.volume = 0.2;
+        collisionSound.volume = 0.25;
         const wallCollisionSound = new Audio('/hit.mp3');
-        wallCollisionSound.volume = 0.15;
-
-        function setCookie(name, value, days = 7) {
-            const date = new Date();
-            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-            document.cookie = name + "=" + value + ";expires=" + date.toUTCString() + ";path=/";
-        }
+        wallCollisionSound.volume = 0.2;
 
         function deleteCookie(name) {
             document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -291,7 +382,6 @@
                 }
                 gameState = state;
                 
-                // Check for winner
                 if (state.winner !== null && !document.getElementById('winScreen').style.display?.includes('flex')) {
                     showWinScreen(state.winner);
                 }
@@ -321,7 +411,7 @@
             socket.emit('getGames', games => {
                 let gameId = null;
                 for (let game of games) {
-                    if (Object.keys(games).length < 12 && (game.state === 'lobby' || game.state === 'playing')) {
+                    if (game.playerCount < 12 && (game.state === 'lobby' || game.state === 'playing')) {
                         gameId = game.id;
                         break;
                     }
@@ -365,14 +455,14 @@
             }
         }
 
-        function drawTank(ctx, x, y, angle, colorIndex, hasShield) {
+        function drawTank(ctx, x, y, angle, colorIndex, hasShield, shieldActive) {
             const color = teamColors[colorIndex];
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
             
             ctx.shadowColor = color;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 15;
             ctx.fillStyle = color;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
@@ -398,9 +488,19 @@
             if (hasShield) {
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.6;
+                ctx.globalAlpha = 0.7;
                 ctx.beginPath();
-                ctx.arc(0, 0, 25, 0, Math.PI * 2);
+                ctx.arc(0, 0, 28, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+            
+            if (shieldActive) {
+                ctx.strokeStyle = '#0099ff';
+                ctx.lineWidth = 3;
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.arc(0, 0, 32, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.globalAlpha = 1;
             }
@@ -420,7 +520,6 @@
             minimapCtx.fillStyle = '#1a2a3a';
             minimapCtx.fillRect(0, 0, minimapWidth, minimapHeight);
             
-            // Draw obstacles
             minimapCtx.fillStyle = '#555555';
             if (gameState.obstacles) {
                 gameState.obstacles.forEach(obs => {
@@ -428,19 +527,18 @@
                 });
             }
             
-            // Draw power-ups
             if (gameState.powerUps) {
                 gameState.powerUps.forEach(pu => {
                     if (pu.active) {
-                        minimapCtx.fillStyle = pu.type === 'health' ? '#00ff00' : pu.type === 'ammo' ? '#ffff00' : '#ff00ff';
+                        const colors = { health: '#00ff00', ammo: '#ffff00', speed: '#ff00ff', damage: '#ff6600', shield: '#0099ff' };
+                        minimapCtx.fillStyle = colors[pu.type] || '#ffff00';
                         minimapCtx.beginPath();
-                        minimapCtx.arc(pu.x * scaleX, pu.y * scaleY, 3, 0, Math.PI * 2);
+                        minimapCtx.arc(pu.x * scaleX, pu.y * scaleY, 4, 0, Math.PI * 2);
                         minimapCtx.fill();
                     }
                 });
             }
             
-            // Draw players
             if (gameState.players) {
                 gameState.players.forEach(player => {
                     if (player.alive) {
@@ -455,7 +553,7 @@
             if (!canvas.width || !canvas.height) return;
             
             if (!gameState) {
-                ctx.fillStyle = '#2a3a4a';
+                ctx.fillStyle = '#0a1a2a';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 return;
             }
@@ -468,17 +566,17 @@
             const offsetX = (canvas.width - mapWidth * scale) / 2;
             const offsetY = (canvas.height - mapHeight * scale) / 2;
 
-            ctx.fillStyle = '#2a3a4a';
+            ctx.fillStyle = '#0a1a2a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            ctx.fillStyle = '#1a2a3a';
+            ctx.fillStyle = '#1a3a5a';
             ctx.fillRect(0, 0, mapWidth, mapHeight);
             
-            ctx.strokeStyle = 'rgba(0, 255, 136, 0.05)';
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.08)';
             ctx.lineWidth = 1;
             for (let x = 0; x < mapWidth; x += 50) {
                 ctx.beginPath();
@@ -495,13 +593,13 @@
 
             ctx.fillStyle = '#444444';
             ctx.fillRect(0, 0, mapWidth, mapHeight);
-            ctx.fillStyle = '#1a2a3a';
+            ctx.fillStyle = '#1a3a5a';
             ctx.fillRect(20, 20, mapWidth - 40, mapHeight - 40);
 
             // Draw obstacles
-            ctx.fillStyle = '#555555';
-            ctx.shadowColor = '#555555';
-            ctx.shadowBlur = 5;
+            ctx.fillStyle = '#666666';
+            ctx.shadowColor = '#666666';
+            ctx.shadowBlur = 8;
             if (gameState.obstacles) {
                 gameState.obstacles.forEach(obstacle => {
                     ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
@@ -513,37 +611,50 @@
             if (gameState.powerUps) {
                 gameState.powerUps.forEach(pu => {
                     if (pu.active) {
-                        const color = pu.type === 'health' ? '#00ff00' : pu.type === 'ammo' ? '#ffff00' : '#ff00ff';
-                        const grad = ctx.createRadialGradient(pu.x, pu.y, 0, pu.x, pu.y, 20);
+                        const colors = { health: '#00ff00', ammo: '#ffff00', speed: '#ff00ff', damage: '#ff6600', shield: '#0099ff' };
+                        const color = colors[pu.type] || '#ffff00';
+                        const grad = ctx.createRadialGradient(pu.x, pu.y, 0, pu.x, pu.y, 25);
                         grad.addColorStop(0, color);
+                        grad.addColorStop(0.7, color + '80');
                         grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
                         ctx.fillStyle = grad;
                         ctx.beginPath();
-                        ctx.arc(pu.x, pu.y, 20, 0, Math.PI * 2);
+                        ctx.arc(pu.x, pu.y, 25, 0, Math.PI * 2);
                         ctx.fill();
                         
                         ctx.fillStyle = color;
                         ctx.beginPath();
-                        ctx.arc(pu.x, pu.y, 8, 0, Math.PI * 2);
+                        ctx.arc(pu.x, pu.y, 10, 0, Math.PI * 2);
                         ctx.fill();
                     }
+                });
+            }
+
+            // Draw particles
+            if (gameState.particles) {
+                gameState.particles.forEach(p => {
+                    const alpha = 1 - (p.age / p.life);
+                    ctx.fillStyle = p.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                    ctx.fill();
                 });
             }
 
             // Draw projectiles
             if (gameState.projectiles) {
                 gameState.projectiles.forEach(p => {
-                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 10);
+                    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 12);
                     grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
-                    grad.addColorStop(0.6, 'rgba(255, 200, 0, 0.5)');
+                    grad.addColorStop(0.6, 'rgba(255, 200, 0, 0.6)');
                     grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.fillStyle = '#ffff00';
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
@@ -555,21 +666,21 @@
             // Draw explosions
             explosions = explosions.filter(exp => {
                 if (exp.age >= exp.maxAge) return false;
-                const radius = (exp.age / exp.maxAge) * 100;
+                const radius = (exp.age / exp.maxAge) * 120;
                 const alpha = 1 - (exp.age / exp.maxAge);
-                ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 0.9})`;
+                ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 1})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = `rgba(255, 165, 0, ${alpha * 0.8})`;
+                ctx.fillStyle = `rgba(255, 165, 0, ${alpha * 0.9})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius * 0.7, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = `rgba(255, 255, 0, ${alpha})`;
+                ctx.fillStyle = `rgba(255, 255, 0, ${alpha * 0.8})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius * 0.4, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
                 ctx.beginPath();
                 ctx.arc(exp.x, exp.y, radius * 0.2, 0, Math.PI * 2);
                 ctx.fill();
@@ -581,7 +692,7 @@
             if (gameState.players) {
                 gameState.players.forEach(player => {
                     if (player.alive) {
-                        drawTank(ctx, player.x, player.y, player.angle, player.teamIndex, player.hasSpawnShield);
+                        drawTank(ctx, player.x, player.y, player.angle, player.teamIndex, player.hasSpawnShield, player.shieldActive);
                     }
                 });
             }
@@ -625,6 +736,7 @@
             if (player) {
                 document.getElementById('hpFill').style.width = (player.hp / 100 * 100) + '%';
                 document.getElementById('ammoFill').style.width = (player.ammo / 10 * 100) + '%';
+                document.getElementById('difficultyInfo').textContent = `🎯 Difficulty: ${(gameState.difficulty || 1).toFixed(1)}x`;
             }
 
             const teamsInGame = new Set();
@@ -637,12 +749,12 @@
             });
             document.getElementById('teamScoresContainer').innerHTML = scoresHTML;
 
-            // Update leaderboard
             const sorted = [...gameState.players].sort((a, b) => b.kills - a.kills);
             let statsHTML = '';
             sorted.slice(0, 8).forEach(p => {
                 const color = teamColors[p.teamIndex];
-                statsHTML += `<div class="stat-row"><span style="color: ${color}">▮ ${p.name}</span><span>${p.kills}K ${p.deaths}D</span></div>`;
+                const streak = p.killStreak > 2 ? `<span class="killstreak"> 🔥${p.killStreak}</span>` : '';
+                statsHTML += `<div class="stat-row"><span style="color: ${color}">▮ ${p.name}</span><span>${p.kills}K ${p.deaths}D${streak}</span></div>`;
             });
             document.getElementById('statsContent').innerHTML = statsHTML;
         }
